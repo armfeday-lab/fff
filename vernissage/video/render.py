@@ -27,6 +27,9 @@ from multiprocessing import Pool
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import space  # noqa: E402
+
 W, H, FPS = 1920, 1080, 30
 B = 0.5  # доля такта при 120 BPM
 CREAM = (245, 237, 224)
@@ -201,12 +204,12 @@ HITS = []     # удары (тряска): (t, amp)
 FLASHES = []  # вспышки: (t, amp)
 
 
-def clip(t0, t1, draw, trans=None, td=0.0):
+def clip(t0, t1, draw, trans=None, td=0.0, prev=None):
     if trans == "flash":
         FLASHES.append((t0, 0.75))
         HITS.append((t0, 7))
         trans, td = None, 0.0
-    CL.append((t0, t1, draw, trans, td))
+    CL.append((t0, t1, draw, trans, td, prev))
 
 
 def over(t0, t1, fn):
@@ -540,37 +543,9 @@ T_slam(6.2, 8.0, "ВЕРНИСАЖ", W // 2, H // 2 - 20, 190)
 T_words(6.6, 8.0, "Ереван · Երևան", W // 2, H // 2 + 130, 48, CREAM, "SemiBold", "m")
 
 
-# ---- 2 · Ереван на карте 0:08–0:14
-def map_bg(t, dur):
-    fr = Image.new("RGBA", (W, H), OBSIDIAN + (255,))
-    d = ImageDraw.Draw(fr)
-    z = 1 + 4 * ease_in(t / dur)
-    step = 120 * z
-    ox, oy = (W / 2) % step, (H / 2) % step
-    for i in range(-2, int(W / step) + 3):
-        d.line((ox + i * step, 0, ox + i * step, H), fill=(62, 56, 56, 255), width=1)
-    for i in range(-2, int(H / step) + 3):
-        d.line((0, oy + i * step, W, oy + i * step), fill=(62, 56, 56, 255), width=1)
-    rings = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    rd = ImageDraw.Draw(rings)
-    for k in range(3):
-        r = (t * 420 + k * 200) % 600
-        rd.ellipse((W / 2 - r, H / 2 - r, W / 2 + r, H / 2 + r), outline=APRICOT + (int(220 * (1 - r / 600)),), width=4)
-    fr.alpha_composite(rings)
-    p = ease_back((t - 0.15) / 0.35)
-    if t > 0.15:
-        cx, py = W / 2, lerp(H / 2 - 260, H / 2 - 70, p)
-        d.ellipse((cx - 26, py - 26, cx + 26, py + 26), fill=POM + (255,))
-        d.polygon([(cx - 19, py + 14), (cx + 19, py + 14), (cx, py + 70)], fill=POM + (255,))
-        d.ellipse((cx - 9, py - 9, cx + 9, py + 9), fill=CREAM + (255,))
-    return fr
-
-
-clip(8.0, 11.0, map_bg, "whip", 0.3)
-hit(8.45, 10)
-T_slam(8.6, 11.0, "ЕРЕВАН", W // 2, H // 2 + 120, 130)
-over(9.0, 11.0, lambda fr, t: paste(fr, text_sprite("40.17° N · 44.51° E"[:int((t - 9.0) * 40)] or " ", 40, "Medium", APRICOT),
-                                    W // 2, H // 2 + 230, clamp((11.0 - t) / 0.2), "mm"))
+# ---- 2 · Ереван — см. космическую вставку ниже; клип 8–11 нужен только как «предыдущий» для перехода в ряды
+clip(8.0, 11.0, lambda t, dur: space.draw(space.LENGTH - 1 / FPS, space.LENGTH), "whip", 0.3)
+R290_IDX = len(CL) - 2  # клип с арками 6–8 с — из него уходим в космос
 clip(11.0, 14.0, shot("R026", "push", sh=0.65), "zoom", 0.4)
 T_words(11.4, 14.0, "вся Армения —", W // 2, 790, 80, WHITE, "ExtraBold", "m")
 T_slam(12.0, 14.0, "ЗА ОДИН ЧАС", W // 2, 900, 120, APRICOT)
@@ -855,16 +830,39 @@ T_words(107.5, 111.6, "м. Площадь Республики", W // 2, 650, 42
 T_chip(108.2, 111.6, "▶  Подпишись", W // 2, 800, 56)
 over(110.8, 112.0, lambda fr, t: fr.alpha_composite(Image.new("RGBA", (W, H), (0, 0, 0, int(255 * ease_in_out((t - 110.8) / 1.0))))))
 
-DURATION = 112.0
+# ---- 2 · Из космоса (вставка): Солнечная система → Земля → Армения → Ереван → Вернисаж
+# Сцена живёт на собственной шкале 1000…1014 с; frame_global() вклеивает её после интро.
+SP0 = 1000.0
+clip(SP0, SP0 + space.LENGTH, space.draw, "zoom", 0.35, prev=R290_IDX)
+T_words(SP0 + 0.4, SP0 + 2.0, "Солнечная система", W // 2, 990, 48, CREAM, "SemiBold", "m")
+T_slam(SP0 + 6.5, SP0 + 8.45, "ЗЕМЛЯ", W // 2, 950, 120, CREAM)
+T_slam(SP0 + 9.3, SP0 + 11.1, "АРМЕНИЯ", W // 2, 880, 120, CREAM, amp=14)
+T_words(SP0 + 9.7, SP0 + 11.1, "Հայաստան", W // 2, 990, 52, APRICOT, "SemiBold", "m")
+T_slam(SP0 + 11.6, SP0 + 12.95, "ЕРЕВАН", W // 2, 880, 120, CREAM)
+over(SP0 + 11.9, SP0 + 12.95, lambda fr, t: paste(fr, text_sprite("40.18° N · 44.51° E"[:int((t - SP0 - 11.9) * 40)] or " ", 40, "Medium", APRICOT),
+                                                 W // 2, 985, clamp((SP0 + 12.95 - t) / 0.2), "mm"))
+T_chip(SP0 + 13.3, SP0 + space.LENGTH, "ВЕРНИСАЖ", W // 2, H // 2 + 90, 58)
+T_words(SP0 + 13.5, SP0 + space.LENGTH, "ул. Арама · ул. Бузанда", W // 2, H // 2 + 175, 40, CREAM, "SemiBold", "m")
+
+DURATION = 112.0 + space.LENGTH - 3.0
+
+
+def vtime(T):
+    """Глобальное время ролика → время на шкале сцен (с космической вставкой после 8 с)."""
+    if T < 8.0:
+        return T
+    if T < 8.0 + space.LENGTH:
+        return SP0 + (T - 8.0)
+    return T - space.LENGTH + 3.0
 
 
 # ================================================================ compositing
 def background(t):
     idx = next((i for i, c in enumerate(CL) if c[0] <= t < c[1]), len(CL) - 1)
-    t0, t1, fn, tr, td = CL[idx]
+    t0, t1, fn, tr, td, prev = CL[idx]
     fr = fn(t - t0, t1 - t0).convert("RGBA")
     if tr and t - t0 < td and idx > 0:
-        p0, p1, pfn, _, _ = CL[idx - 1]
+        p0, p1, pfn = CL[idx - 1 if prev is None else prev][:3]
         fr = TRANS[tr](pfn(t - p0, p1 - p0), fr, (t - t0) / td)
     return fr
 
@@ -893,7 +891,8 @@ def fx():
     return _FX
 
 
-def frame_at(t):
+def frame_at(T):
+    t = vtime(T)
     fr = background(t)
     for a, b, fn in OV:
         if a <= t < b:
@@ -908,13 +907,18 @@ def frame_at(t):
         m = max(abs(dx), abs(dy)) + 2
         img = img.resize((W, H), Image.BILINEAR, box=(m + dx, m + dy, W - m + dx, H - m + dy))
     f = fx()
-    arr = np.asarray(img, np.float32) * f["vig"] + f["grain"][int(t * FPS) % 6]
+    arr = np.asarray(img, np.float32) * f["vig"] + f["grain"][int(T * FPS) % 6]
     return np.clip(arr, 0, 255).astype(np.uint8)
+
+
+API = {}
 
 
 def init_worker(args):
     global A
     A = args
+    API.update(text_sprite=text_sprite, paste=paste, ease_back=ease_back)
+    space.setup(A.space, API)
 
 
 def render_chunk(job):
@@ -937,12 +941,14 @@ def main():
     ap.add_argument("--yandex", required=True)
     ap.add_argument("--commons", required=True)
     ap.add_argument("--fonts", required=True)
+    ap.add_argument("--space", required=True, help="папка с ассетами космической сцены (space_assets.py)")
     ap.add_argument("-o", "--out", default="vernissage.mp4")
     ap.add_argument("--music")
     ap.add_argument("--preview")
     ap.add_argument("--range")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
     A = ap.parse_args()
+    init_worker(A)
 
     if A.preview:
         for s in A.preview.split(","):

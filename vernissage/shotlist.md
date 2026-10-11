@@ -74,3 +74,12 @@ Amaliya G., Ulyana Modigliani, Vladimir Sechkin, Vladimir Zaets, Алёна Ол
 - [x] **Юлия** — 14_Y099_Юлия.jpg
 - [x] **Юлия А.** — 12_Y116_Юлия_А.jpg
 - [x] **Я.В.** — 04_Y059_Я_В.jpg
+
+## Космос и карты (сцена 2) — подписи для описания видео
+
+```
+Текстуры планет: Solar System Scope (solarsystemscope.com), CC BY 4.0
+Спутниковые снимки: EOxCloudless 2016 by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016), CC BY 4.0
+Contains modified Copernicus Sentinel data 2025
+Граница Армении: Natural Earth
+```

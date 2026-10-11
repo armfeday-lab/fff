@@ -1,16 +1,22 @@
 # Рендер ролика
 
-`render.py` собирает динамичный моушн‑ролик по [`../script.md`](../script.md): 1920×1080, 30 fps, ~1:52, без озвучки, монтаж в бит 120 BPM. Внутри: быстрые наезды и панорамы, whip‑переходы со смазом, zoom‑through, шторки, тряска и вспышки на ударах, слова из фото, триптихи, кинетический текст, карточки рейтингов, зерно.
+`render.py` собирает динамичный моушн‑ролик по [`../script.md`](../script.md): 1920×1080, 30 fps, ~2:03, без озвучки, монтаж в бит 120 BPM. Внутри: пролёт из космоса (Солнечная система → Земля → неоновая Армения → спутниковый зум до Вернисажа, `space.py`), быстрые наезды и панорамы, whip‑переходы со смазом, zoom‑through, шторки, тряска и вспышки на ударах, слова из фото, триптихи, кинетический текст, карточки рейтингов, зерно.
 
 ## Что нужно
 
-- Python 3 + Pillow + NumPy (`pip install pillow numpy`)
+- Python 3 + Pillow + NumPy (`pip install pillow numpy`), для подготовки космоса ещё `rasterio`
 - ffmpeg
 - Шрифты Google Fonts: `Montserrat.ttf` и `NotoSansArmenian.ttf` (variable‑версии) — положить в одну папку
 - Фото:
   - `vernissage_reviews_shortlist.zip` (Google Карты) — распаковать в папку
   - `vernissage_yandex_shortlist.zip` (Яндекс Карты) — распаковать в папку
   - фото Commons — `python3 ../download_photos.py` (лягут в `../photos/`)
+
+## Ассеты сцены «из космоса»
+
+```bash
+python3 space_assets.py путь/к/space   # текстуры планет, граница Армении, спутниковые мозаики (~150 МБ)
+```
 
 ## Запуск
 
@@ -20,6 +26,7 @@ python3 render.py \
   --yandex  путь/к/yandex \
   --commons ../photos \
   --fonts   путь/к/шрифтам \
+  --space   путь/к/space \
   -o vernissage.mp4
 ```
 
