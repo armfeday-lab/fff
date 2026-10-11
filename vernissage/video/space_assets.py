@@ -6,7 +6,7 @@
 Скачивает и собирает в OUT_DIR:
   tex/            текстуры планет — Solar System Scope, CC BY 4.0
   border.json     контур Армении вместе с Нагорным Карабахом (границы 1994–2020)
-                  — Natural Earth (общественное достояние)
+                  и inner.json — линия между ними; Natural Earth (общественное достояние)
   sat/z{5..14}_*  мозаики EOxCloudless 2016 (CC BY 4.0) вокруг Вернисажа
   sat/final_z*    они же, где район Еревана/Арарата/Севана заменён свежими
                   безоблачными снимками Copernicus Sentinel‑2 (8 авг. 2025):
@@ -73,6 +73,7 @@ def border(out):
     nk = shape(next(f for f in g["features"] if f["properties"].get("BRK_NAME") == "Nagorno-Karabakh")["geometry"])
     u = unary_union([arm.buffer(0.01), nk.buffer(0.01)]).buffer(-0.01)  # закрыть щели между наборами данных
     json.dump(mapping(u), open(f"{out}/border.json", "w"))
+    json.dump(mapping(arm.boundary.intersection(nk.buffer(0.03))), open(f"{out}/inner.json", "w"))  # граница Армения — Арцах
 
 
 def eox(out):

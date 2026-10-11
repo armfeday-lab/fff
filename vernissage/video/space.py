@@ -336,12 +336,22 @@ def border_rings():
 
 
 _RINGS = []
+_INNER = []
 
 
 def rings():
     if not _RINGS:
         _RINGS.extend(border_rings())
     return _RINGS
+
+
+def inner_lines():
+    """Внутренняя граница Армения — Арцах: такая же неоновая линия, без подписей."""
+    if not _INNER:
+        g = json.load(open(os.path.join(DIR, "inner.json")))
+        lines = g["coordinates"] if g["type"] == "MultiLineString" else [g["coordinates"]]
+        _INNER.extend(np.array(l) for l in lines if len(l) > 1)
+    return _INNER
 
 
 # ================================================================ satellite (Web Mercator)
@@ -482,6 +492,11 @@ def globe_frame(t, labels=True):
                     seg = []
             if seg:
                 segs.append(seg)
+        for ln in inner_lines():
+            Pw = EARTH + ER * (body_vec(ln[:, 1], ln[:, 0]) @ rot)
+            if (((cam.p - Pw) * (Pw - EARTH)).sum(1) > 0).all():
+                x, y, z = cam.proj(Pw)
+                segs.append([(float(p), float(q)) for p, q in zip(x, y)])
         pulse = 0.85 + 0.15 * math.sin(t * 9)
         add, fmask = neon_layer(segs, polys, k * pulse)
         a = np.asarray(img.convert("RGB"), np.float32)
@@ -503,6 +518,9 @@ def map_frame(t):
             pts = [(float(p), float(q)) for p, q in zip(x, y)]
             segs.append(pts + pts[:1])
             polys.append(pts)
+        for ln in inner_lines():
+            x, y = screen_of(ln[:, 1], ln[:, 0], Z, lat, lon)
+            segs.append([(float(p), float(q)) for p, q in zip(x, y)])
         pulse = 0.85 + 0.15 * math.sin(t * 9)
         add, fmask = neon_layer(segs, polys, k * pulse)
         a = a * (1 - 0.45 * k * (1 - np.clip(fmask * 3, 0, 1)))[..., None] + add
