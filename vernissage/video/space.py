@@ -1,11 +1,12 @@
-"""Сцена «из космоса»: Солнечная система → Земля → неоновая Армения → Ереван → Вернисаж.
+"""Сцена «из космоса»: Солнечная система → Земля → неоновая Армения (вместе с Арцахом) → Ереван → Вернисаж.
 
 Планеты — текстурированные сферы (трассировка лучей в numpy) под перспективной
 камерой, летящей по сплайну мимо Сатурна, Юпитера и Марса к Земле. Затем —
 бесшовный переход с глобуса на спутниковую мозаику (Sentinel‑2) и зум до улицы.
 
 Ассеты готовит space_assets.py (текстуры Solar System Scope CC BY 4.0,
-EOxCloudless 2016 CC BY 4.0, Copernicus Sentinel‑2 2025, граница Natural Earth).
+EOxCloudless 2016 CC BY 4.0, Copernicus Sentinel‑2 2025, границы Natural Earth:
+Армения + Нагорный Карабах в контуре 1994–2020 гг. из Natural Earth v4.1.0).
 """
 import glob
 import json
@@ -329,7 +330,7 @@ def neon_layer(lines, fill_polys, strength):
 
 
 def border_rings():
-    g = json.load(open(os.path.join(DIR, "armenia.json")))
+    g = json.load(open(os.path.join(DIR, "border.json")))
     polys = g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]
     return [np.array(p[0]) for p in polys]
 
@@ -395,7 +396,7 @@ MAP_KEYS = [  # (время, Z, тип сглаживания до следую�
     (8.5, 5.15), (9.8, 7.35), (10.9, 7.75), (12.0, 10.9), (12.7, 11.2), (14.0, 14.3),
 ]
 EASES = [lambda p: 1 - (1 - p) ** 2.2, lambda p: p, eio, lambda p: p, eio]
-ARM_C = (40.07, 45.0)
+ARM_C = (40.08, 45.38)  # центр общего контура Армении и Арцаха
 VERN = (40.1767, 44.5171)
 
 

@@ -5,13 +5,14 @@
 
 Скачивает и собирает в OUT_DIR:
   tex/            текстуры планет — Solar System Scope, CC BY 4.0
-  armenia.json    граница Армении — Natural Earth (общественное достояние)
+  border.json     контур Армении вместе с Нагорным Карабахом (границы 1994–2020)
+                  — Natural Earth (общественное достояние)
   sat/z{5..14}_*  мозаики EOxCloudless 2016 (CC BY 4.0) вокруг Вернисажа
   sat/final_z*    они же, где район Еревана/Арарата/Севана заменён свежими
                   безоблачными снимками Copernicus Sentinel‑2 (8 авг. 2025):
                   в мозаике 2016 там цветные полосы
 
-Нужно: pip install pillow numpy rasterio
+Нужно: pip install pillow numpy rasterio shapely
 Подписи для описания видео — см. ../shotlist.md (раздел «Космос и карты»).
 """
 import glob
@@ -62,9 +63,16 @@ def textures(out):
 
 
 def border(out):
-    g = json.loads(fetch("https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries.geojson"))
-    arm = next(f for f in g["features"] if f["properties"].get("ADM0_A3") == "ARM")
-    json.dump(arm["geometry"], open(f"{out}/armenia.json", "w"))
+    """Общий контур: Армения + Нагорный Карабах (Арцах) в границах 1994–2020 гг."""
+    from shapely.geometry import mapping, shape
+    from shapely.ops import unary_union
+    ne = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/{}/geojson/{}.geojson"
+    g = json.loads(fetch(ne.format("master", "ne_10m_admin_0_countries")))
+    arm = shape(next(f for f in g["features"] if f["properties"].get("ADM0_A3") == "ARM")["geometry"])
+    g = json.loads(fetch(ne.format("v4.1.0", "ne_10m_admin_0_disputed_areas")))
+    nk = shape(next(f for f in g["features"] if f["properties"].get("BRK_NAME") == "Nagorno-Karabakh")["geometry"])
+    u = unary_union([arm.buffer(0.01), nk.buffer(0.01)]).buffer(-0.01)  # закрыть щели между наборами данных
+    json.dump(mapping(u), open(f"{out}/border.json", "w"))
 
 
 def eox(out):
@@ -100,7 +108,7 @@ def sentinel(out):
         ov = None
         for k, r in enumerate([20, 40, 80, 160]):
             if r <= ground:
-                ov = k
+                ov = min(k, 1)  # мелкие обзорные копии COG дают артефакты — берём не грубее 40 м
         for tid, href in zip(S2_ITEMS, hrefs):
             with rasterio.open("/vsicurl/" + href, **({} if ov is None else {"overview_level": ov})) as src:
                 with WarpedVRT(src, crs="EPSG:3857", transform=from_origin(x0, y0, res, res), width=NX * 256,

@@ -81,5 +81,5 @@ Amaliya G., Ulyana Modigliani, Vladimir Sechkin, Vladimir Zaets, Алёна Ол
 Текстуры планет: Solar System Scope (solarsystemscope.com), CC BY 4.0
 Спутниковые снимки: EOxCloudless 2016 by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016), CC BY 4.0
 Contains modified Copernicus Sentinel data 2025
-Граница Армении: Natural Earth
+Границы Армении и Нагорного Карабаха: Natural Earth
 ```
