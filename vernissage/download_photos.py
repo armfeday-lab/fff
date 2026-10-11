@@ -39,6 +39,9 @@ def fetch(url, path, tries=6):
                 f.write(r.read())
             return True
         except urllib.error.HTTPError as e:
+            if e.code != 429:
+                print(f"  HTTP {e.code}")
+                return False
             wait = int(e.headers.get("Retry-After") or 0) or 5 * 2 ** attempt
             if wait > 120:
                 print(f"  HTTP {e.code}: Commons просит подождать {wait} с — запустите скрипт позже")
@@ -59,9 +62,10 @@ def main():
         if os.path.exists(path):
             continue
         print(f"[{i}/{len(rows)}] {r['file']}")
-        # Commons отдаёт копию только меньше оригинала, поэтому для небольших фото
-        # берём ширину на 1 px меньше: оригиналы Commons ограничивает сильнее.
-        url = r["url"] if original else thumb_url(r["url"], min(1920, int(r["w"]) - 1))
+        # Commons отдаёт копии только стандартных размеров и меньше оригинала;
+        # оригиналы он ограничивает сильнее, поэтому по умолчанию берём копию.
+        sizes = [w for w in (1920, 1280) if w < int(r["w"])]
+        url = r["url"] if original or not sizes else thumb_url(r["url"], sizes[0])
         if not fetch(url, path):
             print("  не удалось скачать, пропускаю")
         time.sleep(1)
