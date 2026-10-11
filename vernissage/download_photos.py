@@ -59,7 +59,9 @@ def main():
         if os.path.exists(path):
             continue
         print(f"[{i}/{len(rows)}] {r['file']}")
-        url = r["url"] if original or int(r["w"]) <= 1920 else thumb_url(r["url"])
+        # Commons отдаёт копию только меньше оригинала, поэтому для небольших фото
+        # берём ширину на 1 px меньше: оригиналы Commons ограничивает сильнее.
+        url = r["url"] if original else thumb_url(r["url"], min(1920, int(r["w"]) - 1))
         if not fetch(url, path):
             print("  не удалось скачать, пропускаю")
         time.sleep(1)
