@@ -22,13 +22,14 @@
 | 12 | 1:28–1:34 | Гранат | **R** Гранаты‑сувениры — `12_744_Десислава_Димитрова.jpg`<br>**R** Разрезанный гранат — `12_392_Pantelis_Theodosiou.jpg`<br>**R** Натюрморт с гранатами — `12_378_Oksana.jpg`<br>**R** Серебро с гранатами — `12_255_gnes_Marlok.jpg`<br>**Y** Керамические гранаты — `12_Y116_Юлия_А.jpg` |
 | 13 | 1:34–1:40 | Обсидиан и серебро | **R** Ножи из обсидиана — `13_867_Alexsandra_Радиация_Polikarpova.jpg`<br>**R** Минералы — `13_748_Joselle_Ann_Padilla.jpg`<br>**R** Подвески‑гранаты — `13_693_Фил_Фили.jpg` |
 | 14 | 1:40–1:48 | Советский ряд | **R** Советские знамёна — `14_824_Nadezda.jpg`<br>**R** Патефон — `01_460_Lapsiplay.jpg`<br>**R** Фотоаппараты — `14_542_Marcel_Kub_n.jpg`<br>**R** Значки — `14_153_Fabio_Ciancabilla.jpg`<br>**R** Ушанки — `14_328_Fabio_Carnicchia.jpg`<br>**R** Игрушечная «Победа» — `14_789_Danijela_Mihailovic.jpg`<br>**Y** Самовары и тележное колесо — `14_Y099_Юлия.jpg`<br>**Y** Меховые шапки — `14_Y219_Ulyana_Modigliani.jpg` |
-| 15 | 1:48–1:55 | Продавцы играют | **C** Мужчины играют в шахматы — [`Chess, Vernissage, Yerevan.jpg`](https://commons.wikimedia.org/wiki/File:Chess,_Vernissage,_Yerevan.jpg) |
+| 15 | 1:48–1:55 | Продавцы играют | **C** Мужчины играют в шахматы — [`Chess, Vernissage, Yerevan.jpg`](https://commons.wikimedia.org/wiki/File:Chess,_Vernissage,_Yerevan.jpg)<br>**Y** Девушка с ангелом ручной работы — улыбка крупно, медленный наезд — `15_Y323_Vladimir_Sechkin.jpg` |
 | 16 | 1:55–2:02 | Рейтинги — фон под карточки | **R** Арки VERNISSAGE, размыть фон — `16_750_paola_b.jpg` |
 | 17 | 2:02–2:12 | Советы | **Y** Джезвы крупно — «ищите ручную работу» — `17_Y302_Vladimir_Zaets.jpg`<br>**R** Ряды джезв — `17_660_Nino_Tikurishvili.jpg`<br>**R** Расписные тарелки — `17_079_Sandaruwanp_Premarathna.jpg` |
-| 18 | 2:12–2:17 | Финал | **R** Вечерний ряд — `18_178_MOHD_A.jpg`<br>**R** Закат над аллеей — `18_186_Elaraby_Mohamed.jpg` |
+| 18 | 2:12–2:17 | Финал | **Y** Девушка с ангелом — последний кадр перед логотипом (стоп‑кадр + титр) — `15_Y323_Vladimir_Sechkin.jpg`<br>**R** Вечерний ряд — `18_178_MOHD_A.jpg`<br>**R** Закат над аллеей — `18_186_Elaraby_Mohamed.jpg` |
 | Бонус | — | Вернисаж зимой (вставка в интро или финал) | **R** Гранаты под снегом — `bonus_468_Hassan_Alkadhem.jpg`<br>**R** Медь зимой — `bonus_436_L_osservatore.jpg`<br>**R** Снег между рядами — `bonus_454_farida_said.jpg` |
 | Бонус 2 | — | Ремёсла для доп. врезок | **Y** Резные деревянные кресты — `bonus_Y309_Ольга_Я.jpg`<br>**Y** Модель храма Гарни — `bonus_Y345_Amaliya_G.jpg`<br>**Y** Вязаные тапочки‑джурабы — `bonus_Y321_Vladimir_Sechkin.jpg` |
-| Shorts | 0:00–0:45 | Вертикальные кадры | **R** Арка VERNISSAGE — `shorts_135_Be_Traveller_Be_Happy.jpg`<br>**R** Гранаты — `01_041_Remko.jpg`<br>**R** Дудуки — `01_033_Remko.jpg`<br>**R** Гранаты‑сувениры — `12_744_Десислава_Димитрова.jpg` |
+| Shorts | 0:00–0:45 | Вертикальные кадры | **R** Арка VERNISSAGE — `shorts_135_Be_Traveller_Be_Happy.jpg`<br>**R** Гранаты — `01_041_Remko.jpg`<br>**R** Дудуки — `01_033_Remko.jpg`<br>**R** Гранаты‑сувениры — `12_744_Десислава_Димитрова.jpg`<br>**Y** Девушка с ангелом — финальный кадр Shorts — `15_Y323_Vladimir_Sechkin.jpg` |
+| Обложка | — | Превью ролика (thumbnail) | **Y** Портрет + крупный текст «ВЕРНИСАЖ» — `15_Y323_Vladimir_Sechkin.jpg`<br>**R** Запасной вариант: две арки — `01_290_Sahal_Khoshhal.jpg` |
 
 ## Подписи для описания видео
 
@@ -60,7 +61,7 @@ Amaliya G., Ulyana Modigliani, Vladimir Sechkin, Vladimir Zaets, Алёна Ол
 
 - [ ] **Amaliya G.** — bonus_Y345_Amaliya_G.jpg
 - [ ] **Ulyana Modigliani** — 14_Y219_Ulyana_Modigliani.jpg
-- [ ] **Vladimir Sechkin** — bonus_Y321_Vladimir_Sechkin.jpg
+- [ ] **Vladimir Sechkin** — 15_Y323_Vladimir_Sechkin.jpg, bonus_Y321_Vladimir_Sechkin.jpg
 - [ ] **Vladimir Zaets** — 17_Y302_Vladimir_Zaets.jpg
 - [ ] **Алёна Олейниченко** — 09_Y174_Алёна_Олейниченко.jpg
 - [ ] **Екатерина Алексеевна** — 11_Y015_Екатерина_Алексеевна.jpg
