@@ -1130,8 +1130,8 @@ def photo_box(x0, y0, w):
 LOGO_S = 2.65                       # рисунок заказчика без искажений, единый масштаб, целиком в кадре
 # середина между вершинами логотипа — на середину между вершинами Арарата на спиле
 LOGO_OX, LOGO_OY = 872 - (181 + 445) / 2 * LOGO_S, 297 - (125 + 68) / 2 * LOGO_S
-LINE_COLOR = {"white": (255, 255, 255), "gold": (246, 196, 92)}[os.environ.get("ARARAT_COLOR", "white")]
-GLOW_COLOR = {"white": (255, 214, 160), "gold": (255, 160, 60)}[os.environ.get("ARARAT_COLOR", "white")]
+LINE_COLOR = {"white": (255, 255, 255), "gold": (246, 196, 92)}[os.environ.get("ARARAT_COLOR", "gold")]
+GLOW_COLOR = {"white": (255, 214, 160), "gold": (255, 160, 60)}[os.environ.get("ARARAT_COLOR", "gold")]
 
 
 @lru_cache(maxsize=1)
