@@ -900,10 +900,20 @@ ARM_R = SR * 0.84
 
 @lru_cache(maxsize=1)
 def gold_symbol():
+    """Золотой знак заказчика без его серого фона: фон вырезан по цвету, плетёный край сохранён."""
     path = os.path.join(A.space, "arevakhach_gold.jpg")
     im = Image.open(path).convert("RGB")
     im = ImageOps.fit(im, (W, H), Image.LANCZOS).filter(ImageFilter.UnsharpMask(2, 80, 2))
-    return im.convert("RGBA")
+    a = np.asarray(im, np.float32)
+    bg = np.median(a[:60, :60].reshape(-1, 3), 0)
+    diff = np.abs(a - bg).max(2)
+    yy, xx = np.mgrid[0:H, 0:W]
+    r = np.hypot(xx - SC[0], yy - SC[1])
+    alpha = np.where(r < SR * 0.93, 1.0, np.clip((diff - 6) / 22, 0, 1)) * (r < SR * 1.05)
+    alpha = np.asarray(Image.fromarray((alpha * 255).astype(np.uint8), "L").filter(ImageFilter.GaussianBlur(0.8)), np.uint8)
+    out = im.convert("RGBA")
+    out.putalpha(Image.fromarray(alpha, "L"))
+    return out
 
 
 @lru_cache(maxsize=1)
@@ -953,7 +963,8 @@ def sym_phi(t):
 def symbol_scene(t, dur):
     years = [e[0] for e in ERAS]
     darkk = ease_in_out((t - 0.35) / 0.7)
-    fr = Image.blend(Image.new("RGBA", (W, H), CREAM + (255,)), Image.new("RGBA", (W, H), (8, 8, 10, 255)), darkk)
+    night = Image.fromarray(night_sky().astype(np.uint8)).convert("RGBA")  # общий фон со сценой Арарата
+    fr = Image.blend(Image.new("RGBA", (W, H), CREAM + (255,)), night, darkk)
     if t < 0.7:  # фото и шкала уходят
         h = hist_end_frame()
         o = 1 - ease_in(t / 0.6)
@@ -986,7 +997,7 @@ def symbol_scene(t, dur):
     # цветной знак → золотой (как на картинке) и стоп‑кадр на 1 секунду
     g = ease_in_out((t - 4.3) / 0.8)
     if g > 0:
-        fr = Image.blend(fr, gold_symbol(), g)
+        fr.alpha_composite(with_alpha(gold_symbol(), g))
     return fr
 
 
@@ -1093,12 +1104,8 @@ def ararat_layers():
 def sun_disc():
     """Золотой знак, вырезанный кругом из картинки заказчика."""
     g = gold_symbol()
-    r = int(SR * 1.02)
-    disc = g.crop((int(SC[0] - r), int(SC[1] - r), int(SC[0] + r), int(SC[1] + r)))
-    m = Image.new("L", disc.size, 0)
-    ImageDraw.Draw(m).ellipse((2, 2, 2 * r - 2, 2 * r - 2), fill=255)
-    disc.putalpha(m.filter(ImageFilter.GaussianBlur(2)))
-    return disc
+    r = int(SR * 1.05)
+    return g.crop((int(SC[0] - r), int(SC[1] - r), int(SC[0] + r), int(SC[1] + r)))
 
 
 def sky(k_sunset, k_day):
@@ -1182,8 +1189,7 @@ def glow_lines(mask, strength):
 
 
 def ararat_scene(t, dur):
-    k_sky = ease_in_out(t / 1.2)
-    bg = np.full((H, W, 3), 37.0, np.float32) * (1 - k_sky) + night_sky() * k_sky
+    bg = night_sky()  # тот же фон, что и у знака вечности — без скачка цвета
     fr = Image.fromarray(bg.astype(np.uint8)).convert("RGBA")
     # 1) знак уменьшается и поднимается над седловиной — становится солнцем
     p = ease_in_out(t / 1.4)
