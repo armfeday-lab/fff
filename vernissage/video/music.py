@@ -7,7 +7,8 @@
   интро и заголовок — «Old Road» (Kevin MacLeod, CC BY 4.0): зурна ровно 120 BPM, удар на старте интро
   ряды и история    — после заголовка зурна плавно уходит в «Desert City» (Kevin MacLeod, CC BY 4.0),
                       замедленную до 80 BPM: такт = 3 с, склейки рядов и каждый год истории — на сильную долю
-  знак и Арарат     — без бита: низкий гул‑дам и живой дудук (freesound.org/s/352572, ethnictune, CC0)
+  знак и Арарат     — без барабанов: «Desert City» тише, сверху живой дудук (freesound.org/s/352572, CC0),
+                      фраза поднята на 3 полутона и приходит в тонику трека
   каталог и финал   — снова зурна в долю; в сцене «02 ДУДУК» — дудук с басом 808 в том же темпе
 Дудук и зурна в одном ладу (хиджаз от ре) и строе (+10 центов к A440), фразы не транспонируем.
 """
@@ -116,6 +117,61 @@ def bass_bed(length, root):
     return out[: int(length * SR)]
 
 
+def dhol(rng, amp=1.0):
+    """Дхол, басовая сторона: низкий удар с кожей."""
+    n = int(0.7 * SR)
+    t = np.arange(n) / SR
+    body = np.sin(2 * np.pi * np.cumsum(58 + 60 * np.exp(-t / 0.035)) / SR) * np.exp(-t / 0.2)
+    from scipy.signal import butter, sosfilt
+    skin = sosfilt(butter(2, 700, "lowpass", fs=SR, output="sos"), rng.standard_normal(n)) * np.exp(-t / 0.04) * 0.5
+    stick = sosfilt(butter(2, 2500, "highpass", fs=SR, output="sos"), rng.standard_normal(n)) * np.exp(-t / 0.005) * 0.3
+    return sat(body + skin + stick, 1.8) * amp
+
+
+def tek(rng, amp=1.0, f=420.0):
+    """Сухой «тэк» по ободу — лёгкая доля между склейками."""
+    n = int(0.12 * SR)
+    t = np.arange(n) / SR
+    from scipy.signal import butter, sosfilt
+    tone = np.sin(2 * np.pi * f * t) * np.exp(-t / 0.03)
+    snap = sosfilt(butter(2, [1500, 6000], "bandpass", fs=SR, output="sos"), rng.standard_normal(n)) * np.exp(-t / 0.012)
+    return (tone * 0.6 + snap) * amp
+
+
+def percussion(length, t0, cuts, accents, beat, fill_at=None):
+    """Перкуссия, которая «считает» монтаж: дхол на каждой склейке, «тэк» на долях, лёгкие восьмые.
+    cuts/accents — время в ролике; всё ставится на сетку beat от t0."""
+    rng = np.random.default_rng(9)
+    out = np.zeros((int((length + 1) * SR), 2))
+
+    def add(t, snd, pan=0.0):
+        i = int(round((t - t0) * SR))
+        if i < 0 or i >= len(out):
+            return
+        j = min(len(out), i + len(snd))
+        out[i:j, 0] += snd[: j - i] * (1 - max(0, pan))
+        out[i:j, 1] += snd[: j - i] * (1 + min(0, pan))
+
+    strong = {round(c, 3) for c in cuts}
+    k = 0
+    while t0 + k * beat / 2 < t0 + length - 1e-6:
+        t = round(t0 + k * beat / 2, 3)
+        if k % 2 == 0:
+            if t in strong:
+                add(t, dhol(rng, 1.0))
+            else:
+                add(t, tek(rng, 0.35, 380 if (k // 2) % 2 else 440), 0.3)
+        else:
+            add(t, tek(rng, 0.12, 900), -0.4)  # восьмые — тихо, для движения
+        k += 1
+    for a in accents:
+        add(a, tek(rng, 0.45, 520), -0.2)
+    if fill_at is not None:  # дробь‑подводка за долю до склейки
+        for i in range(4):
+            add(fill_at - beat + i * beat / 4, tek(rng, 0.25 + 0.1 * i, 460 + 40 * i), 0.2 * (i % 2 * 2 - 1))
+    return out[: int(length * SR)]
+
+
 def place(dst, at, snd):
     i = int(round(at * SR))
     j = min(len(dst), i + len(snd))
@@ -131,18 +187,6 @@ def fades(x, fin=0.0, fout=0.0):
     if fout:
         e *= np.clip((n / SR - t) / fout, 0, 1)
     return x * e[:, None]
-
-
-def dam(length, root):
-    """Дам — тянущийся бурдон дудука: мягкая трость на ре и суб октавой ниже, медленно дышит."""
-    n = int(length * SR)
-    t = np.arange(n) / SR
-    reed = sum(np.sin(2 * np.pi * root * 2 * k * t + 0.3 * k) / k ** 1.3 for k in range(1, 7))
-    sub = np.sin(2 * np.pi * root * t)
-    breath = 0.85 + 0.15 * np.sin(2 * np.pi * 0.23 * t)
-    x = (reed * 0.25 + sub * 0.6) * breath
-    x *= np.clip(t / 2.5, 0, 1) * np.clip((length - t) / 0.8, 0, 1)
-    return np.stack([x, x * 0.97], 1)
 
 
 def main():
@@ -167,8 +211,9 @@ def main():
     ff(["-i", m("Desert City.mp3"), "-af", f"atempo={80 / 85.97:.5f}"], tmp("_desert.wav"))  # 85.97 → 80 BPM
     ff(["-ss", str(DUDUK_PHRASE[0]), "-t", str(DUDUK_PHRASE[1] + 0.5), "-i", a.duduk, "-af", "highpass=f=120"],
        tmp("_duduk.wav"))
-    ff(["-ss", str(ARARAT_PHRASE[0]), "-t", str(ARARAT_PHRASE[1]), "-i", a.duduk, "-af", "highpass=f=120"],
-       tmp("_duduk2.wav"))
+    # фраза для знака и Арарата — на 3 полутона выше (минус 7 центов строя), чтобы прийти в тонику «Desert City» (фа)
+    ff(["-ss", str(ARARAT_PHRASE[0]), "-t", str(ARARAT_PHRASE[1]), "-i", a.duduk, "-af",
+        f"highpass=f=120,rubberband=pitch={2 ** (293 / 1200):.5f}:formant=preserved"], tmp("_duduk2.wav"))
     ftb, zur, des = read(tmp("_ftb.wav")), read(tmp("_zurna.wav")), read(tmp("_desert.wav"))
     ref = rms(zur[: int(10 * SR)])  # громкость зурны в интро — опора для остальных частей
     out = np.zeros((int(D * SR) + SR, 2))
@@ -179,17 +224,26 @@ def main():
     z = z * np.clip((T1 - O + 1.25 - np.arange(len(z)) / SR) / 1.5, 0, 1)[:, None]
     place(out, O, z)
     # 2) ряды и история: «Desert City» 80 BPM, её сильная доля (начало трека) — точно на конце заголовка
-    d = fades(des[: int((He - T1 + 1.2) * SR)], 0.01, 1.2)  # последний такт затихает, пока годы кружатся
-    place(out, T1, d * (0.9 * ref / rms(des[: int(30 * SR)])))
-    # 3) знак и Арарат: без бита — дам и дудук
-    root = 73.42 * 2 ** (10 / 1200)  # ре большой октавы в строе записи
-    place(out, He - 0.3, dam(C - He + 0.3, root) * (0.35 * ref / 0.3))
+    d = fades(des[: int((C - T1 + 0.5) * SR)], 0.01, 1.0) * (0.9 * ref / rms(des[: int(30 * SR)]))
+    # знак и Арарат: трек не выключаем — он тише уходит под дудук, барабаны молчат
+    tt = T1 + np.arange(len(d)) / SR
+    duck = 1 - 0.45 * np.clip((tt - He) / 1.5, 0, 1)
+    place(out, T1, d * duck[:, None])
+    # поверх — перкуссия по монтажу: каждая склейка рядов и каждый год — удар дхола
+    Hs = R.to_out(R.H0)
+    cuts = [R.to_out(c[0]) for c in R.CL if R.to_out(c[0]) is not None and T1 - 1e-3 <= R.to_out(c[0]) < He]
+    cuts += [R.to_out(R.H0 + e * R.ERA) for e in range(len(R.ERAS))]
+    accents = [R.to_out(h) for h, amp in R.HITS if R.to_out(h) is not None and T1 < R.to_out(h) < He and amp >= 8]
+    perc = percussion(He - T1, T1, cuts, accents, 0.75, fill_at=Hs)
+    place(out, T1, perc * (0.75 * ref / rms(perc)))
+    # 3) знак и Арарат: без барабанов, сверху живой дудук
+    root = 73.42 * 2 ** (10 / 1200)  # ре большой октавы в строе записи (бас под дудуком в каталоге)
     d2 = fades(read(tmp("_duduk2.wav")), 0.05, 1.5)
     d2 *= 0.9 * ref / rms(d2[: int(5 * SR)])
     place(out, C - ARARAT_PHRASE[1], d2)  # фраза начинается, когда складывается золотой знак, и стихает к каталогу
     # 4) каталог и финал: снова зурна, с сильной доли
     zl = D - C
-    z = fades(zur[int(ZURNA_BACK * SR): int((ZURNA_BACK + zl) * SR)], 0.01, 2.5)
+    z = fades(zur[int(ZURNA_BACK * SR): int((ZURNA_BACK + zl) * SR)], 0.01, 2.5)  # с сильной доли каталога
     i0 = int(round(C * SR))
     # вставка дудука с басами в сцене «02 ДУДУК»
     s0, s1 = R.DUDUK_SCENE
