@@ -1120,45 +1120,94 @@ def photo_box(x0, y0, w):
     return ararat_photo().transform((W, H), Image.EXTENT, (x0, y0, x0 + w, y0 + h), Image.BILINEAR).convert("RGBA")
 
 
+LOGO_SX, LOGO_SY, LOGO_OX, LOGO_OY = 3.45, 2.6, -207.5, 39.0  # пики логотипа → пики Арарата на спиле
+
+
+@lru_cache(maxsize=1)
+def ararat_logo_mask():
+    """Белый контур Арарата — точно по картинке заказчика, растянутый так, чтобы вершины
+    совпали с вершинами на расписном спиле."""
+    lg = Image.open(os.path.join(A.space, "ararat_logo.png")).convert("L")
+    w, h = int(lg.width * LOGO_SX), int(lg.height * LOGO_SY)
+    lg = lg.resize((w, h), Image.LANCZOS).point(lambda v: 0 if v < 60 else (255 if v > 160 else int((v - 60) * 255 / 100)))
+    m = Image.new("L", (W, H), 0)
+    m.paste(lg, (int(LOGO_OX), int(LOGO_OY)))
+    return m
+
+
+@lru_cache(maxsize=1)
+def khor_virap_mask():
+    """Хор Вирап на холме — та же форма, что и раньше, белой линией и силуэтом."""
+    m = Image.new("L", (W * 2, H * 2), 0)
+    d = ImageDraw.Draw(m)
+    hill = [(1070, 850), (1144, 742), (1300, 706), (1500, 664), (1700, 642), (1979, 575), (2100, 592)]
+    d.line([(x * 2, y * 2) for x, y in hill], fill=255, width=12, joint="curve")
+    for poly in ([(1290, 708), (1290, 645), (1505, 645), (1505, 708)], [(1372, 645), (1372, 596), (1416, 596), (1416, 645)],
+                 [(1362, 598), (1394, 548), (1426, 598)], [(1452, 645), (1474, 616), (1496, 645)]):
+        d.polygon([(x * 2, y * 2) for x, y in poly], fill=255)
+    d.line((1394 * 2, 548 * 2, 1394 * 2, 506 * 2), fill=255, width=8)
+    d.line((1381 * 2, 522 * 2, 1407 * 2, 522 * 2), fill=255, width=8)
+    d.line((1474 * 2, 616 * 2, 1474 * 2, 596 * 2), fill=255, width=6)
+    return m.resize((W, H), Image.LANCZOS)
+
+
+def glow_white(mask, strength):
+    """Белые линии с мягким тёплым свечением."""
+    a = np.asarray(mask, np.float32)[..., None] / 255
+    g1 = np.asarray(mask.filter(ImageFilter.GaussianBlur(6)), np.float32)[..., None] / 255
+    g2 = np.asarray(mask.filter(ImageFilter.GaussianBlur(22)), np.float32)[..., None] / 255
+    return (a * np.array([255, 255, 255]) + g1 * np.array([255, 236, 210]) * 0.6 + g2 * np.array([255, 190, 120]) * 0.5) * strength, a
+
+
 def ararat_scene(t, dur):
-    # 1) небо: из тёмного фона знака — в закат, к моменту совпадения — в дневное, как на спиле
-    k_sun = ease_in_out(t / 1.2)
-    k_day = ease_in_out((t - 2.2) / 1.0)
-    fr = Image.fromarray(sky(k_sun, k_day).astype(np.uint8)).convert("RGBA")
-    # 2) знак уменьшается и поднимается — становится солнцем; к совпадению гаснет
+    base = np.full((H, W, 3), 37.0, np.float32)  # фон тот же, что у золотого знака
+    fr = Image.fromarray(base.astype(np.uint8)).convert("RGBA")
+    # 1) знак уменьшается и поднимается между вершинами — становится солнцем
     p = ease_in_out(t / 1.4)
-    r = lerp(SR * 1.02, SUN_R, p)
-    cx, cy = lerp(SC[0], SUN_POS[0], p), lerp(SC[1], SUN_POS[1], p)
-    sun_o = 1 - ease_in_out((t - 2.5) / 0.8)
-    if sun_o > 0:
+    r = lerp(SR * 1.02, 60.0, p)
+    cx, cy = lerp(SC[0], 860.0, p), lerp(SC[1], 175.0, p)
+    lines_o = 1 - ease_in_out((t - 3.4) / 0.5)
+    if lines_o > 0:
         glow = Image.new("L", (W, H), 0)
-        gr = r * 2.6
-        ImageDraw.Draw(glow).ellipse((cx - gr, cy - gr, cx + gr, cy + gr), fill=int(200 * k_sun * sun_o))
+        gr = r * 2.4
+        ImageDraw.Draw(glow).ellipse((cx - gr, cy - gr, cx + gr, cy + gr), fill=int(150 * p * lines_o))
         glow = glow.filter(ImageFilter.GaussianBlur(r * 0.9))
-        fr.alpha_composite(Image.merge("RGBA", (Image.new("L", (W, H), 255), Image.new("L", (W, H), 214),
-                                                 Image.new("L", (W, H), 150), glow)))
+        fr.alpha_composite(Image.merge("RGBA", (Image.new("L", (W, H), 255), Image.new("L", (W, H), 205),
+                                                 Image.new("L", (W, H), 140), glow)))
         disc = sun_disc().resize((max(2, int(2 * r)), max(2, int(2 * r))), Image.LANCZOS).rotate(-t * 40, Image.BICUBIC)
-        paste(fr, disc, cx, cy, sun_o, "mm")
-    # 3) слои Арарата поднимаются снизу с параллаксом
-    for (layer, start, depth) in zip(ararat_layers(), (0.7, 0.9, 1.3, 1.5), (0.35, 0.55, 0.8, 1.0)):
-        q = ease_out((t - start) / 1.0)
-        if q <= 0:
-            continue
-        fr.alpha_composite(layer, (0, int((1 - q) * H * depth)))
-    # лёгкий наезд 2.0–3.0 — заканчивается ровно в кадре совпадения
-    z = lerp(0.94, 1.0, ease_out((t - 1.6) / 1.4))
-    if z < 0.999:
-        cw, ch = W * z, H * z
-        fr = fr.resize((W, H), Image.BILINEAR, box=((W - cw) / 2, (H - ch) / 2, (W + cw) / 2, (H + ch) / 2))
-    # 4) совпадение: вектор перетекает в расписной спил, затем камера отъезжает — видно руку продавца
-    k_x = ease_in_out((t - 3.0) / 0.6)
+        paste(fr, disc, cx, cy, lines_o, "mm")
+    # 2) Арарат вырастает снизу вверх: светящийся фронт поднимается от подножия к вершинам
+    grow = ease_in_out((t - 0.9) / 1.5)
+    hk = ease_out((t - 1.9) / 0.6)
+    if (grow > 0 or hk > 0) and lines_o > 0:
+        y = np.arange(H, dtype=np.float32)[:, None]
+        front = lerp(H + 40, 150, grow)
+        reveal = np.clip((y - front) / 40 + 1, 0, 1)
+        m = (np.asarray(ararat_logo_mask(), np.float32) * reveal).astype(np.uint8)
+        x = np.arange(W, dtype=np.float32)[None, :]
+        kv = np.clip((lerp(1040, 2150, hk) - x) / 60, 0, 1) * (1 if hk > 0 else 0)
+        m = np.maximum(m, (np.asarray(khor_virap_mask(), np.float32) * kv).astype(np.uint8))
+        add, _ = glow_white(Image.fromarray(m, "L"), lines_o)
+        edge = np.exp(-((y - front) / 18) ** 2) * (grow < 0.999)
+        add += (np.asarray(ararat_logo_mask(), np.float32)[..., None] / 255) * edge[..., None] * np.array([255, 200, 140]) * 0.8 * lines_o
+        a = np.asarray(fr.convert("RGB"), np.float32) + add
+        fr = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8)).convert("RGBA")
+    # 3) под линиями проявляется расписной спил — контур ложится точно на нарисованный Арарат,
+    #    линии гаснут, камера отъезжает — спил в руке продавца
+    k_x = ease_in_out((t - 2.9) / 0.6)
     if k_x > 0:
-        pb = ease_in_out((t - 3.6) / 1.7)
+        pb = ease_in_out((t - 3.7) / 1.7)
         x0 = lerp(PH_B0[0], PH_FULL[0], pb)
         y0 = lerp(PH_B0[1], PH_FULL[1], pb)
         w = PH_B0[2] * (PH_FULL[2] / PH_B0[2]) ** pb
         ph = photo_box(x0, y0, w)
-        fr = Image.blend(fr, ph, k_x) if k_x < 1 else ph
+        if lines_o > 0:
+            lines = np.asarray(fr.convert("RGB"), np.float32) - 37.0
+            pa = np.asarray(ph.convert("RGB"), np.float32)
+            out = pa * k_x + 37.0 * (1 - k_x) + np.clip(lines, 0, None) * lines_o
+            fr = Image.fromarray(np.clip(out, 0, 255).astype(np.uint8)).convert("RGBA")
+        else:
+            fr = ph
     return fr
 
 
