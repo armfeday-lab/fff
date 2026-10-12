@@ -893,7 +893,7 @@ for e, (yr, suf, l1, l2, bar, photos, style) in enumerate(ERAS):
 
 # ---- 6b · Годы взлетают, кружатся и превращаются в знак вечности (аревахач)
 SYM0 = 4000.0
-SYM_LEN = 6.4
+SYM_LEN = 6.5  # кратно доле — склейки после знака остаются в сетке
 SC, SR = (957.0, 548.0), 322.0  # центр и радиус золотого знака в кадре (по картинке заказчика)
 ARM_R = SR * 0.84
 
@@ -1206,8 +1206,18 @@ SEGMENTS = [(0.0, 8.0), (SP0, space.LENGTH), (11.0, 19.0), (H0, HIST_LEN), (SYM0
 DURATION = sum(d for _, d in SEGMENTS)
 
 
+TAIL_SPEED = 1.0  # ускорение всего после интро (подгонка склеек под темп трека), задаётся --tail-speed
+INTRO_LEN = SEGMENTS[0][1]
+
+
+def out_duration():
+    return INTRO_LEN + (DURATION - INTRO_LEN) / TAIL_SPEED
+
+
 def vtime(T):
     """Глобальное время ролика → время на шкале сцен."""
+    if T > INTRO_LEN:
+        T = INTRO_LEN + (T - INTRO_LEN) * TAIL_SPEED
     for start, length in SEGMENTS:
         if T < length:
             return start + T
@@ -1275,8 +1285,9 @@ API = {}
 
 
 def init_worker(args):
-    global A
+    global A, TAIL_SPEED
     A = args
+    TAIL_SPEED = args.tail_speed
     API.update(text_sprite=text_sprite, paste=paste, ease_back=ease_back)
     space.setup(A.space, API)
 
@@ -1307,6 +1318,8 @@ def main():
     ap.add_argument("--preview")
     ap.add_argument("--range")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
+    ap.add_argument("--tail-speed", type=float, default=1.0,
+                    help="ускорить всё после интро (1.25 — склейки на 150 BPM вместо 120)")
     A = ap.parse_args()
     init_worker(A)
 
@@ -1316,7 +1329,7 @@ def main():
             Image.fromarray(frame_at(t)).save(f"{os.path.splitext(A.out)[0]}_{t:06.2f}.png")
         return
 
-    start, end = (map(float, A.range.split(","))) if A.range else (0.0, DURATION)
+    start, end = (map(float, A.range.split(","))) if A.range else (0.0, out_duration())
     f_start, f_end = int(start * FPS), int(end * FPS)
     n = A.workers
     tmp = os.path.splitext(A.out)[0] + "_parts"

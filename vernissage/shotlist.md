@@ -97,3 +97,12 @@ Wikimedia Commons:
 ```
 
 Золотой знак вечности в сцене 6 — изображение заказчика.
+
+## Музыка — подпись для описания видео
+
+```
+Музыка:
+"Old Road", "Finding the Balance" — Kevin MacLeod (incompetech.com)
+Licensed under Creative Commons: By Attribution 4.0 License
+http://creativecommons.org/licenses/by/4.0/
+```
