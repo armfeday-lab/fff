@@ -617,16 +617,19 @@ def title_band():
 def title_masks(scale_q):
     sc = scale_q / 100
     big = Image.new("L", (W, H), 0)
-    f = font(int(232 * sc), "Black")
-    ImageDraw.Draw(big).text((W / 2, H / 2 - 50), "VERNISSAGE", font=f, fill=255, anchor="mm")
+    size = 300
+    while font(size, "Black").getlength("VERNISSAGE") > W * 0.9:
+        size -= 6
+    f = font(int(size * sc), "Black")
+    ImageDraw.Draw(big).text((W / 2, H / 2 - 110), "VERNISSAGE", font=f, fill=255, anchor="mm")
     small = Image.new("L", (W, H), 0)
-    fs = font(int(92 * sc), "Black")
+    fs = font(int(190 * sc), "Black")
     ds = ImageDraw.Draw(small)
-    letters, track = "YEREVAN", int(48 * sc)
+    letters, track = "YEREVAN", int(40 * sc)
     widths = [fs.getbbox(ch)[2] - fs.getbbox(ch)[0] for ch in letters]
     x = W / 2 - (sum(widths) + track * (len(letters) - 1)) / 2
     for ch, wd in zip(letters, widths):
-        ds.text((x, H / 2 + 135), ch, font=fs, fill=255, anchor="lm")
+        ds.text((x, H / 2 + 170), ch, font=fs, fill=255, anchor="lm")
         x += wd + track
     return big, small
 
@@ -661,31 +664,25 @@ def title_bg(t, dur):
                 fr.paste(marq_tile(MARQ[k % len(MARQ)]), (int(x), row * (th + gap) - 30))
             x += tw + gap
             k += 1
-    fr.alpha_composite(Image.new("RGBA", (W, H), (20, 10, 15, 70)))
     for kind, x0, y0, vx, vy, sc, rs, ph in STICK:
         x = (x0 + vx * t) % (W + 400) - 200
         y = y0 + vy * t + 18 * math.sin(t * 2 + ph)
         spr = pomegranate() if kind == "pom" else flag(t, phase=ph)
-        spr = spr.resize((int(spr.width * sc * (0.75 if kind == "flag" else 0.95)), int(spr.height * sc * (0.75 if kind == "flag" else 0.95))), Image.BILINEAR)
+        k = 0.75 if kind == "flag" else 0.95
+        spr = spr.resize((int(spr.width * sc * k), int(spr.height * sc * k)), Image.BILINEAR)
         spr = spr.rotate(rs * math.sin(t * 0.8 + ph) * 0.5 + (rs if kind == "pom" else 0), Image.BILINEAR, expand=True)
-        shd = Image.new("RGBA", spr.size, (0, 0, 0, 0))
-        shd.putalpha(spr.getchannel("A").point(lambda v: v * 0.45).filter(ImageFilter.GaussianBlur(8)))
-        fr.alpha_composite(shd, (int(x - spr.width / 2 + 8), int(y - spr.height / 2 + 12)))
         fr.alpha_composite(spr, (int(x - spr.width / 2), int(y - spr.height / 2)))
-    # стеклянный заголовок
-    p = ease_out((t - 0.35) / 0.55)
-    if p > 0:
-        band = title_band()
-        fr.alpha_composite(with_alpha(band, clamp(p * 1.5)))
-        sq = int(round(lerp(108, 100, p)))
-        big, small = title_masks(sq)
-        glass(fr, big, clamp(p * 1.4))
-        q = ease_out((t - 0.9) / 0.45)
-        if q > 0:
-            fr.alpha_composite(Image.merge("RGBA", (Image.new("L", (W, H), 255),) * 3
-                                           + (small.point(lambda v: int(v * q)),)))
-        shine(fr, (t - 1.6) / 1.1)
-    return fr
+    # как в «ОБСИДИАН»: огромные слова на тёмном фоне, внутри букв — цветной рынок
+    out = Image.new("RGBA", (W, H), OBSIDIAN + (255,))
+    p = ease_out((t - 0.1) / 0.5)
+    sq = int(round(lerp(112, 100, p)))
+    big, small = title_masks(sq)
+    out.paste(fr, (0, 0), big.point(lambda v: int(v * clamp(p * 1.5))))
+    q = ease_out((t - 0.55) / 0.45)
+    if q > 0:
+        out.paste(fr, (0, 0), small.point(lambda v: int(v * q)))
+    shine(out, (t - 1.7) / 1.1)
+    return out
 
 
 clip(4.0, 8.0, title_bg, "zoom", 0.3)
@@ -1082,7 +1079,6 @@ over(110.8, 112.0, lambda fr, t: fr.alpha_composite(Image.new("RGBA", (W, H), (0
 SP0 = 1000.0
 clip(SP0, SP0 + space.LENGTH, space.draw, "zoom", 0.35, prev=TITLE_IDX)
 M = space.MAP_SHIFT  # тайминги карты — на старой шкале сцены
-T_slam(SP0 + 1.2, SP0 + space.GLOBE_LEN - 0.05, "ЗЕМЛЯ", W // 2, 950, 120, CREAM)
 T_slam(SP0 + 9.3 - M, SP0 + 11.1 - M, "АРМЕНИЯ", W // 2, 880, 120, CREAM, amp=14)
 T_words(SP0 + 9.7 - M, SP0 + 11.1 - M, "Հայաստան", W // 2, 990, 52, APRICOT, "SemiBold", "m")
 T_slam(SP0 + 11.6 - M, SP0 + 12.95 - M, "ЕРЕВАН", W // 2, 880, 120, CREAM)
