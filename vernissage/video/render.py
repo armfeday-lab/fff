@@ -531,21 +531,170 @@ def T_chip(t0, t1, text, x, y, size=50, bg=POM, fg=WHITE):
 
 
 # ================================================================ SCENES (1:52)
-# ---- 1 · Интро 0:00–0:08: 8 кадров в бит со вспышками → слово из фото → арки
-INTRO = [("R648", "push"), ("Y343", "pan_l"), ("R165", "pull"), ("R734", "push"),
-         ("R542", "pan_r"), ("Y116", "push"), ("R857", "pull"), ("Y083", "pan_l")]
+# ---- 1 · Интро 0:00–0:08: 8 самых ярких кадров в бит → стеклянное VERNISSAGE / YEREVAN
+INTRO = [("Y169", "push"), ("R819", "pan_l"), ("R755", "pull"), ("Y149", "push"),
+         ("R842", "pan_r"), ("Y336", "push"), ("R743", "pull"), ("R816", "pan_l")]
 for i, (k, mv) in enumerate(INTRO):
-    clip(i * B, (i + 1) * B, shot(k, mv, sh=0.15), "flash" if i else None)
-clip(4.0, 6.0, maskword("R290", "ВЕРНИСАЖ", OBSIDIAN, 420, "drift"), "zoom", 0.3)
-hit(4.15, 16)
-clip(6.0, 8.0, shot("R290", "pull", sh=0.6), "circle", 0.4)
-T_slam(6.2, 8.0, "ВЕРНИСАЖ", W // 2, H // 2 - 20, 190)
-T_words(6.6, 8.0, "Ереван · Երևան", W // 2, H // 2 + 130, 48, CREAM, "SemiBold", "m")
+    clip(i * B, (i + 1) * B, shot(k, mv, sh=0.1), "flash" if i else None)
+MARQ = ["Y116", "Y067", "R348", "Y321", "R378", "R840", "Y129", "R682", "Y171", "R666", "Y340", "R498",
+        "R756", "R857", "Y383", "R842"]
 
+
+@lru_cache(maxsize=None)
+def marq_tile(key, w=540, h=360):
+    from PIL import ImageEnhance
+    im = ImageOps.fit(raw(key), (w, h), Image.LANCZOS)
+    im = ImageEnhance.Color(im).enhance(1.3)
+    return ImageEnhance.Brightness(im).enhance(1.08)
+
+
+@lru_cache(maxsize=None)
+def pomegranate(size=240):
+    """Векторный гранат: глянцевый шар, блик и корона."""
+    n = size
+    yy, xx = np.mgrid[0:n, 0:n].astype(np.float32) / n
+    cx, cy, r = 0.5, 0.56, 0.4
+    d = np.hypot(xx - cx, yy - cy) / r
+    hl = np.hypot(xx - (cx - 0.13), yy - (cy - 0.15)) / r
+    body = np.clip(1 - d, 0, 1)
+    a = np.clip((1 - d) * n * 0.08, 0, 1)
+    t = np.clip(hl / 1.6, 0, 1)
+    col = np.stack([lerp(245, 110, t), lerp(60, 8, t), lerp(70, 22, t)], -1)
+    im = Image.fromarray(np.dstack([col, a * 255]).astype(np.uint8), "RGBA")
+    dr = ImageDraw.Draw(im)
+    c = n / 2
+    crown = [(c - 0.11 * n, 0.2 * n), (c - 0.13 * n, 0.07 * n), (c - 0.05 * n, 0.14 * n), (c, 0.04 * n),
+             (c + 0.05 * n, 0.14 * n), (c + 0.13 * n, 0.07 * n), (c + 0.11 * n, 0.2 * n)]
+    dr.polygon(crown, fill=(150, 22, 38, 255))
+    spec = Image.new("L", (n, n), 0)
+    ImageDraw.Draw(spec).ellipse((0.27 * n, 0.32 * n, 0.43 * n, 0.44 * n), fill=170)
+    spec = spec.filter(ImageFilter.GaussianBlur(n * 0.03))
+    im.alpha_composite(Image.merge("RGBA", (Image.new("L", (n, n), 255),) * 3 + (spec,)))
+    return im
+
+
+def flag(t, w=300, h=200, phase=0.0):
+    """Армянский флаг, развевающийся на ветру."""
+    base = np.zeros((h, w, 3), np.float32)
+    base[: h // 3] = (217, 0, 18)
+    base[h // 3: 2 * h // 3] = (0, 51, 160)
+    base[2 * h // 3:] = (242, 168, 0)
+    A = h * 0.08
+    xs = np.arange(w) / w
+    wave = np.sin(2 * np.pi * (xs * 1.3 - t * 1.2) + phase)
+    dy = (A * wave * xs).astype(np.int32)
+    shade = 1 + 0.22 * np.cos(2 * np.pi * (xs * 1.3 - t * 1.2) + phase) * xs
+    out = np.zeros((h + int(2 * A) + 2, w + 10, 4), np.uint8)
+    for x in range(w):
+        y0 = int(A) + 1 + dy[x]
+        out[y0:y0 + h, x + 10, :3] = np.clip(base[:, x] * shade[x], 0, 255)
+        out[y0:y0 + h, x + 10, 3] = 255
+    out[:, 2:7, :3] = (60, 50, 45)  # древко
+    out[:, 2:7, 3] = 255
+    return Image.fromarray(out, "RGBA")
+
+
+STICK = []  # (тип, x0, y0, vx, vy, масштаб, вращение, фаза)
+_rng = np.random.default_rng(3)
+for _i in range(14):
+    STICK.append(("pom" if _i % 2 == 0 else "flag", float(_rng.uniform(-100, W + 100)), float(_rng.uniform(40, H - 40)),
+                  float(_rng.choice([-1, 1]) * _rng.uniform(60, 160)), float(_rng.uniform(-40, 40)),
+                  float(_rng.uniform(0.55, 1.15)), float(_rng.uniform(-40, 40)), float(_rng.uniform(0, 6))))
+
+
+@lru_cache(maxsize=None)
+def title_band():
+    """Мягкое затемнение под заголовком — чтобы стекло читалось на пёстром фоне."""
+    y = np.arange(H, dtype=np.float32)
+    a = np.exp(-((y - (H / 2 + 10)) / 230) ** 2) * 150
+    m = Image.fromarray(np.repeat(a[:, None], W, 1).astype(np.uint8), "L")
+    band = Image.new("RGBA", (W, H), (25, 8, 14, 0))
+    band.putalpha(m)
+    return band
+
+
+@lru_cache(maxsize=None)
+def title_masks(scale_q):
+    sc = scale_q / 100
+    big = Image.new("L", (W, H), 0)
+    f = font(int(232 * sc), "Black")
+    ImageDraw.Draw(big).text((W / 2, H / 2 - 50), "VERNISSAGE", font=f, fill=255, anchor="mm")
+    small = Image.new("L", (W, H), 0)
+    fs = font(int(92 * sc), "Black")
+    ds = ImageDraw.Draw(small)
+    letters, track = "YEREVAN", int(48 * sc)
+    widths = [fs.getbbox(ch)[2] - fs.getbbox(ch)[0] for ch in letters]
+    x = W / 2 - (sum(widths) + track * (len(letters) - 1)) / 2
+    for ch, wd in zip(letters, widths):
+        ds.text((x, H / 2 + 135), ch, font=fs, fill=255, anchor="lm")
+        x += wd + track
+    return big, small
+
+
+def glass(fr, mask, o):
+    """«Стеклянный» текст: под буквами — размытый и осветлённый фон, белая кромка, тень."""
+    if o <= 0:
+        return
+    m = np.asarray(mask, np.float32)[..., None] / 255 * o
+    sh = np.asarray(mask.filter(ImageFilter.GaussianBlur(14)), np.float32)[..., None] / 255 * o
+    sh = np.roll(np.roll(sh, 10, 0), 6, 1)
+    rgb = np.asarray(fr.convert("RGB"), np.float32)
+    rgb = rgb * (1 - 0.45 * sh)
+    blur = np.asarray(fr.convert("RGB").filter(ImageFilter.GaussianBlur(20)), np.float32)
+    frost = blur * 0.62 + 255 * 0.38
+    rgb = rgb * (1 - m) + frost * m
+    edge = np.asarray(mask.filter(ImageFilter.MaxFilter(5)), np.float32)[..., None] / 255 - np.asarray(mask, np.float32)[..., None] / 255
+    rgb = rgb * (1 - np.clip(edge, 0, 1) * 0.9 * o) + 255 * np.clip(edge, 0, 1) * 0.9 * o
+    fr.paste(Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8)).convert("RGBA"))
+
+
+def title_bg(t, dur):
+    fr = Image.new("RGBA", (W, H), OBSIDIAN + (255,))
+    tw, th, gap = 540, 360, 8
+    for row in range(3):
+        speed = (130, -170, 110)[row]
+        off = (t * speed + row * 200) % ((tw + gap) * len(MARQ))
+        x = -off
+        k = row * 5
+        while x < W:
+            if x + tw > 0:
+                fr.paste(marq_tile(MARQ[k % len(MARQ)]), (int(x), row * (th + gap) - 30))
+            x += tw + gap
+            k += 1
+    fr.alpha_composite(Image.new("RGBA", (W, H), (20, 10, 15, 70)))
+    for kind, x0, y0, vx, vy, sc, rs, ph in STICK:
+        x = (x0 + vx * t) % (W + 400) - 200
+        y = y0 + vy * t + 18 * math.sin(t * 2 + ph)
+        spr = pomegranate() if kind == "pom" else flag(t, phase=ph)
+        spr = spr.resize((int(spr.width * sc * (0.75 if kind == "flag" else 0.95)), int(spr.height * sc * (0.75 if kind == "flag" else 0.95))), Image.BILINEAR)
+        spr = spr.rotate(rs * math.sin(t * 0.8 + ph) * 0.5 + (rs if kind == "pom" else 0), Image.BILINEAR, expand=True)
+        shd = Image.new("RGBA", spr.size, (0, 0, 0, 0))
+        shd.putalpha(spr.getchannel("A").point(lambda v: v * 0.45).filter(ImageFilter.GaussianBlur(8)))
+        fr.alpha_composite(shd, (int(x - spr.width / 2 + 8), int(y - spr.height / 2 + 12)))
+        fr.alpha_composite(spr, (int(x - spr.width / 2), int(y - spr.height / 2)))
+    # стеклянный заголовок
+    p = ease_out((t - 0.35) / 0.55)
+    if p > 0:
+        band = title_band()
+        fr.alpha_composite(with_alpha(band, clamp(p * 1.5)))
+        sq = int(round(lerp(108, 100, p)))
+        big, small = title_masks(sq)
+        glass(fr, big, clamp(p * 1.4))
+        q = ease_out((t - 0.9) / 0.45)
+        if q > 0:
+            fr.alpha_composite(Image.merge("RGBA", (Image.new("L", (W, H), 255),) * 3
+                                           + (small.point(lambda v: int(v * q)),)))
+        shine(fr, (t - 1.6) / 1.1)
+    return fr
+
+
+clip(4.0, 8.0, title_bg, "zoom", 0.3)
+hit(4.55, 16)
+hit(5.05, 8)
+TITLE_IDX = len(CL) - 1
 
 # ---- 2 · Ереван — см. космическую вставку ниже; клип 8–11 нужен только как «предыдущий» для перехода в ряды
 clip(8.0, 11.0, lambda t, dur: space.draw(space.LENGTH - 1 / FPS, space.LENGTH), "whip", 0.3)
-R290_IDX = len(CL) - 2  # клип с арками 6–8 с — из него уходим в космос
 clip(11.0, 14.0, shot("R026", "push", sh=0.65), "zoom", 0.4)
 T_words(11.4, 14.0, "вся Армения —", W // 2, 790, 80, WHITE, "ExtraBold", "m")
 T_slam(12.0, 14.0, "ЗА ОДИН ЧАС", W // 2, 900, 120, APRICOT)
@@ -568,6 +717,7 @@ clip(24.5, 27.5, shot("R175", "pan_l", sh=0.7, shine_at=0.3), "zoom", 0.35)
 T_bar(24.8, 27.5, "показ картин", 140, 800, 80, POM, WHITE, "Black")
 T_words(25.2, 27.5, "до открытия выставки", 140, 910, 60, CREAM, "Bold")
 clip(27.5, 30.0, shot("R028", "push", sh=0.7), "whip", 0.25)
+HIST_PREV = len(CL) - 1
 T_words(27.8, 30.0, "в Ереване —", 140, 790, 76, WHITE, "ExtraBold")
 T_slam(28.3, 30.0, "С КОНЦА 1970‑Х", 140, 900, 104, APRICOT, anchor="lm")
 
@@ -637,6 +787,103 @@ T_slam(40.3, 42.0, "2016", W // 2, 780, 170, APRICOT)
 T_words(40.7, 42.0, "новые павильоны", W // 2, 910, 62, WHITE, "ExtraBold", "m")
 
 
+# ---- 5–6 · История 1970 → 2026 (вставка на своей шкале H0, см. vtime)
+H0 = 3000.0
+ERA = 3.0
+ERAS = [  # год, суффикс, строка 1, строка 2, плашка, фото, стиль
+    (1970, "‑е", "слово «вернисаж»", "приходит в Ереван", "так называют показы картин",
+     ["CCascade in 1970s.jpg", "COld Cascade 01.jpg"], "bw"),
+    (1980, "‑е", "художники выставляют", "картины на улице", "сквер Сарьяна", ["CArmenia, Yerevan (2166087660).jpg"], "sepia"),
+    (1988, "", "после землетрясения", "ремесло кормит мастеров", "стойкость", ["CRuins in Spitak after the 1988 earthquake.jpg"], "bw"),
+    (1991, "", "независимость", "Армении", "рынок растёт", ["CRally for the Armenian Referendum for Independence 1991.jpg",
+                                                        "CErevan - Vernissage 02.JPG"], "faded"),
+    (2000, "‑е", "ряды у площади", "Республики", "ул. Арама и Бузанда", ["CErevan - Vernissage 01.JPG", "CYerevan Vernissage view.jpg"], "faded"),
+    (2016, "", "реконструкция", "новые павильоны", "более 3 гектаров", ["CYerevan Vernissage by ArmAg (1).jpg"], "color"),
+    (2026, "", "сегодня", "гости со всего мира", "~1000 продавцов", ["R290", "Y058"], "vivid"),
+]
+HIST_LEN = ERA * len(ERAS)
+
+
+@lru_cache(maxsize=None)
+def polaroid_style(key, w, angle, style):
+    from PIL import ImageEnhance
+    im = ImageOps.fit(raw(key), (w, int(w * 0.75)), Image.LANCZOS)
+    if style == "bw":
+        im = ImageEnhance.Contrast(ImageOps.grayscale(im).convert("RGB")).enhance(1.15)
+    elif style == "sepia":
+        im = ImageOps.colorize(ImageOps.grayscale(im), (55, 38, 22), (250, 232, 200))
+    elif style == "faded":
+        im = Image.blend(ImageEnhance.Color(im).enhance(0.55), Image.new("RGB", im.size, (240, 220, 190)), 0.12)
+    elif style == "vivid":
+        im = ImageEnhance.Color(im).enhance(1.25)
+    m = int(w * 0.05)
+    card = Image.new("RGBA", (w + 2 * m, im.height + m + int(w * 0.16)), (252, 250, 245, 255))
+    card.paste(im, (m, m))
+    sh = Image.new("RGBA", (card.width + 100, card.height + 100), (0, 0, 0, 0))
+    ImageDraw.Draw(sh).rectangle((50, 64, card.width + 50, card.height + 64), fill=(0, 0, 0, 120))
+    sh = sh.filter(ImageFilter.GaussianBlur(20))
+    sh.alpha_composite(card, (50, 50))
+    return sh.rotate(angle, Image.BICUBIC, expand=True)
+
+
+def era_layout(n):
+    return [(1400, 520, 720, -3)] if n == 1 else [(1250, 400, 560, -5), (1560, 640, 560, 6)]
+
+
+for e, (*_, photos, style) in enumerate(ERAS):
+    for i in range(len(photos)):
+        hit(H0 + e * ERA + 0.35 + i * 0.35 + 0.2, 12)
+
+
+def history2(t, dur):
+    fr = Image.new("RGBA", (W, H), CREAM + (255,))
+    d = ImageDraw.Draw(fr)
+    for i in range(0, W + H, 90):
+        d.line((i, 0, i - H, H), fill=(238, 228, 212, 255), width=2)
+    e = min(len(ERAS) - 1, int(t // ERA))
+    lt = t - e * ERA
+    if e > 0 and lt < 0.35:  # предыдущая эпоха уезжает влево
+        pe = ERAS[e - 1]
+        for (x, y, w, ang), key in zip(era_layout(len(pe[5])), pe[5]):
+            paste(fr, polaroid_style(key, w, ang, pe[6]), x - ease_in(lt / 0.35) * 1500, y, 1.0, "mm")
+    era = ERAS[e]
+    for i, ((x, y, w, ang), key) in enumerate(zip(era_layout(len(era[5])), era[5])):
+        land(fr, polaroid_style(key, w, ang, era[6]), x, y, lt, 0.35 + i * 0.35)
+    return fr
+
+
+def history2_counter(fr, t):
+    lt = t - H0
+    e = min(len(ERAS) - 1, int(lt // ERA))
+    y0 = ERAS[e - 1][0] if e else 1960
+    y1, suf = ERAS[e][0], ERAS[e][1]
+    pp = (lt - e * ERA) / 0.45
+    v = int(round(lerp(y0, y1, ease_out(pp))))
+    s = text_sprite(f"{v}{suf if v == y1 else ''}", 200, "Black", POM, shadow=False)
+    sc = 1.0 + (0.1 * (1 - ease_out((pp - 1) / 0.3)) if 1 <= pp < 1.3 else 0)
+    paste(fr, scaled(s, sc), 110, 250, clamp(lt / 0.2) * clamp((H0 + HIST_LEN - t) / 0.2), "lm")
+    years = [x[0] for x in ERAS]
+    xs = [130 + i * 135 for i in range(len(years))]
+    dr = ImageDraw.Draw(fr)
+    dr.line((100, 1000, xs[-1] + 30, 1000), fill=TUFF + (255,), width=4)
+    pos = float(np.interp(v, years, xs))
+    dr.line((100, 1000, pos, 1000), fill=POM + (255,), width=9)
+    for x, yv in zip(xs, years):
+        on = abs(pos - x) < 3
+        r = 14 if on else 7
+        dr.ellipse((x - r, 1000 - r, x + r, 1000 + r), fill=(POM if on else TUFF) + (255,))
+        paste(fr, text_sprite(str(yv), 28 if on else 23, "Bold" if on else "Medium", POM if on else (130, 100, 85), shadow=False),
+              x, 962, 1.0, "mb")
+
+
+clip(H0, H0 + HIST_LEN, history2, "up", 0.4, prev=HIST_PREV)
+over(H0, H0 + HIST_LEN, history2_counter)
+for e, (yr, suf, l1, l2, bar, photos, style) in enumerate(ERAS):
+    a0, a1 = H0 + e * ERA, H0 + (e + 1) * ERA - 0.05
+    T_words(a0 + 0.45, a1, l1, 120, 420, 58, OBSIDIAN, "Bold")
+    T_words(a0 + 0.65, a1, l2, 120, 495, 58, OBSIDIAN, "Bold")
+    T_bar(a0 + 1.0, a1, bar, 120, 630, 52, POM, WHITE)
+
 # ---- 7 · Сквер Сарьяна ↔ площадь Республики 0:42–0:46 (сплит‑экран)
 def split2(t, dur):
     fr = Image.new("RGBA", (W, H), OBSIDIAN + (255,))
@@ -684,8 +931,8 @@ CATALOG = [
      [("R734", "push", 1.0), ("Y354", "pan_r", 1.0), ("Y015", "pull", 1.25), ("R857", "push", 1.25)]),
     ("04", "ГРАНАТ", "символ Армении", "R378", POM,
      [("Y116", "pan_l", 1.25), ("R378", "push", 1.25), (["R744", "R392", "Y136"], None, 2.0)]),
-    ("05", "ОБСИДИАН", "вулканическое стекло", "Y236", OBSIDIAN,
-     [("R070", "push", 1.25), ("Y236", "pan_r", 1.25), (["R867", "R748", "R693"], None, 2.0)]),
+    ("05", "ОБСИДИАН", "вулканическое стекло", "C2017-Obsidian-Armenia-Vtorov.jpg", OBSIDIAN,
+     [("C2017-Obsidian-Armenia-Vtorov.jpg", "pan_r", 1.5), ("R867", "push", 1.5), ("R708", "pull", 1.5)]),
     ("06", "АНТИКВАРИАТ", "машина времени", "R824", APRICOT,
      [("R824", "push", 0.75), ("R542", "pan_r", 0.75), ("Y219", "push", 0.75), ("R584", "pull", 0.75),
       (["R460", "R153", "R328"], None, 1.5)]),
@@ -703,7 +950,7 @@ for num, name, sub, mkey, bg, shots in CATALOG:
         if isinstance(k, list):
             clip(t, t + dur, panels(k), None)
         else:
-            clip(t, t + dur, shot(k, mv, sh=0.6, shine_at=0.2 if num == "05" and i == 0 else None),
+            clip(t, t + dur, shot(k, mv, sh=0.6, shine_at=0.2 if k in ("R867", "R708") else None),
                  tr, 0.0 if tr == "flash" else (0.4 if tr == "zoom" else 0.25))
         t += dur
     T_bar(t0 + 1.8, t - 0.05, f"{num}  {name}", 110, 860, 66, bg if bg != OBSIDIAN else POM, WHITE, "Black")
@@ -833,27 +1080,30 @@ over(110.8, 112.0, lambda fr, t: fr.alpha_composite(Image.new("RGBA", (W, H), (0
 # ---- 2 · Из космоса (вставка): Солнечная система → Земля → Армения → Ереван → Вернисаж
 # Сцена живёт на собственной шкале 1000…1014 с; frame_global() вклеивает её после интро.
 SP0 = 1000.0
-clip(SP0, SP0 + space.LENGTH, space.draw, "zoom", 0.35, prev=R290_IDX)
-T_words(SP0 + 0.4, SP0 + 2.0, "Солнечная система", W // 2, 990, 48, CREAM, "SemiBold", "m")
-T_slam(SP0 + 6.5, SP0 + 8.45, "ЗЕМЛЯ", W // 2, 950, 120, CREAM)
-T_slam(SP0 + 9.3, SP0 + 11.1, "АРМЕНИЯ", W // 2, 880, 120, CREAM, amp=14)
-T_words(SP0 + 9.7, SP0 + 11.1, "Հայաստան", W // 2, 990, 52, APRICOT, "SemiBold", "m")
-T_slam(SP0 + 11.6, SP0 + 12.95, "ЕРЕВАН", W // 2, 880, 120, CREAM)
-over(SP0 + 11.9, SP0 + 12.95, lambda fr, t: paste(fr, text_sprite("40.18° N · 44.51° E"[:int((t - SP0 - 11.9) * 40)] or " ", 40, "Medium", APRICOT),
-                                                 W // 2, 985, clamp((SP0 + 12.95 - t) / 0.2), "mm"))
-T_chip(SP0 + 13.3, SP0 + space.LENGTH, "ВЕРНИСАЖ", W // 2, H // 2 + 90, 58)
-T_words(SP0 + 13.5, SP0 + space.LENGTH, "ул. Арама · ул. Бузанда", W // 2, H // 2 + 175, 40, CREAM, "SemiBold", "m")
+clip(SP0, SP0 + space.LENGTH, space.draw, "zoom", 0.35, prev=TITLE_IDX)
+M = space.MAP_SHIFT  # тайминги карты — на старой шкале сцены
+T_slam(SP0 + 1.2, SP0 + space.GLOBE_LEN - 0.05, "ЗЕМЛЯ", W // 2, 950, 120, CREAM)
+T_slam(SP0 + 9.3 - M, SP0 + 11.1 - M, "АРМЕНИЯ", W // 2, 880, 120, CREAM, amp=14)
+T_words(SP0 + 9.7 - M, SP0 + 11.1 - M, "Հայաստան", W // 2, 990, 52, APRICOT, "SemiBold", "m")
+T_slam(SP0 + 11.6 - M, SP0 + 12.95 - M, "ЕРЕВАН", W // 2, 880, 120, CREAM)
+over(SP0 + 11.9 - M, SP0 + 12.95 - M, lambda fr, t: paste(fr, text_sprite("40.18° N · 44.51° E"[:int((t - SP0 - 11.9 + M) * 40)] or " ", 40, "Medium", APRICOT),
+                                                         W // 2, 985, clamp((SP0 + 12.95 - M - t) / 0.2), "mm"))
+T_chip(SP0 + 13.3 - M, SP0 + space.LENGTH, "ВЕРНИСАЖ", W // 2, H // 2 + 90, 58)
+T_words(SP0 + 13.5 - M, SP0 + space.LENGTH, "ул. Арама · ул. Бузанда", W // 2, H // 2 + 175, 40, CREAM, "SemiBold", "m")
 
-DURATION = 112.0 + space.LENGTH - 3.0
+# Монтаж: (начало на шкале сцен, длительность)
+SEGMENTS = [(0.0, 8.0), (SP0, space.LENGTH), (11.0, 19.0), (H0, HIST_LEN), (42.0, 70.0)]
+DURATION = sum(d for _, d in SEGMENTS)
 
 
 def vtime(T):
-    """Глобальное время ролика → время на шкале сцен (с космической вставкой после 8 с)."""
-    if T < 8.0:
-        return T
-    if T < 8.0 + space.LENGTH:
-        return SP0 + (T - 8.0)
-    return T - space.LENGTH + 3.0
+    """Глобальное время ролика → время на шкале сцен."""
+    for start, length in SEGMENTS:
+        if T < length:
+            return start + T
+        T -= length
+    s0, l0 = SEGMENTS[-1]
+    return s0 + l0 - 1e-3
 
 
 # ================================================================ compositing

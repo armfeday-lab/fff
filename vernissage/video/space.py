@@ -1,4 +1,6 @@
-"""Сцена «из космоса»: Солнечная система → Земля → неоновая Армения (вместе с Арцахом) → Ереван → Вернисаж.
+"""Сцена «из космоса»: Земля издалека → неоновая Армения (вместе с Арцахом) → Ереван → Вернисаж.
+
+(Пролёт по Солнечной системе — globe_frame() — оставлен в коде, но в ролик не входит.)
 
 Планеты — текстурированные сферы (трассировка лучей в numpy) под перспективной
 камерой, летящей по сплайну мимо Сатурна, Юпитера и Марса к Земле. Затем —
@@ -19,7 +21,10 @@ from PIL import Image, ImageDraw, ImageFilter
 W, H = 1920, 1080
 F = (W / 2) / math.tan(math.radians(25))  # горизонтальный FOV 50°
 CX, CY = W / 2, H / 2
-LENGTH = 14.0
+GLOBE_LEN = 5.0          # приближение к Земле издалека
+MAP_SHIFT = 8.5 - GLOBE_LEN  # спутниковая часть живёт на старой шкале (8.5…14)
+LENGTH = 14.0 - MAP_SHIFT
+D_FAR = 16.0             # с какого расстояния начинаем: Земля — маленький голубой шар
 
 CREAM = (245, 237, 224)
 POM = (158, 27, 50)
@@ -548,12 +553,47 @@ def map_frame(t):
     return img
 
 
+def earth_frame(t):
+    """Только Земля: видна издалека, камера приближается, Армения загорается неоном."""
+    p = min(1.0, max(0.0, t / GLOBE_LEN))
+    s = eio(p) * 0.65 + p * 0.35
+    d = D_FAR * (D_END / D_FAR) ** s if t <= GLOBE_LEN else D_END * (0.43 / D_END) ** ((t - GLOBE_LEN) / 0.5)
+    cam = Cam(EARTH + DIRV * d, EARTH)
+    canvas = stars(cam) * (1 - smooth((t - 2.5) / 2.5) * 0.5)
+    rot = earth_rot(t + MAP_SHIFT)
+    draw_sphere(canvas, cam, EARTH, ER, ORBITS["Земля"][3], rot, earth=True, t=t)
+    img = Image.fromarray(np.clip(canvas, 0, 255).astype(np.uint8)).convert("RGBA")
+    k = smooth((t - 3.5) / 0.9)
+    if k > 0:
+        segs, polys = [], []
+        for ring in rings():
+            Pw = EARTH + ER * (body_vec(ring[:, 1], ring[:, 0]) @ rot)
+            vis = ((cam.p - Pw) * (Pw - EARTH)).sum(1) > 0
+            x, y, z = cam.proj(Pw)
+            pts = [(float(a), float(b)) for a, b in zip(x, y)]
+            if vis.all():
+                polys.append(pts)
+                segs.append(pts + pts[:1])
+        for ln in inner_lines():
+            Pw = EARTH + ER * (body_vec(ln[:, 1], ln[:, 0]) @ rot)
+            if (((cam.p - Pw) * (Pw - EARTH)).sum(1) > 0).all():
+                x, y, z = cam.proj(Pw)
+                segs.append([(float(a), float(b)) for a, b in zip(x, y)])
+        add, fmask = neon_layer(segs, polys, k * (0.85 + 0.15 * math.sin(t * 9)))
+        a = np.asarray(img.convert("RGB"), np.float32)
+        a = a * (1 - 0.35 * k * (1 - np.clip(fmask * 3, 0, 1)))[..., None] + add
+        img = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8)).convert("RGBA")
+    return img
+
+
 def draw(t, dur):
-    if t < 8.5:
-        return globe_frame(t)
-    m = map_frame(t)
-    if t < 9.0:  # вход в атмосферу: глобус → спутник со вспышкой
-        g = globe_frame(t, labels=False)
+    """Сцена: Земля издалека → неоновая Армения → спутниковый зум до Вернисажа."""
+    if t < GLOBE_LEN:
+        return earth_frame(t)
+    m = map_frame(t + MAP_SHIFT)
+    if t < GLOBE_LEN + 0.5:  # вход в атмосферу: глобус → спутник со вспышкой
+        g = earth_frame(t)
+        t = t + MAP_SHIFT
         k = smooth((t - 8.5) / 0.45)
         out = Image.blend(g, m, k)
         fl = math.sin(math.pi * min(1, (t - 8.5) / 0.5)) * 0.55
