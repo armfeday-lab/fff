@@ -3,11 +3,13 @@
 
   python3 music.py --music папка/с/mp3 --duduk duduk.mp3 -o soundtrack.wav
 
-  космос (OPEN_LEN)  — «Finding the Balance» (Kevin MacLeod, CC BY 4.0), спокойное начало, затухает к взрыву
-  дальше             — «Old Road» (Kevin MacLeod, CC BY 4.0): зурна, подтянута до ровно 120 BPM, удар на старте интро
-  сцена «02 ДУДУК»   — зурна уходит, звучит живой дудук (freesound.org/s/352572, ethnictune, CC0)
-                       с басом 808, бочкой, хлопком и тихими хэтами в том же темпе; на «03» зурна возвращается в долю
-Дудук и зурна в одном ладу (хиджаз от ре) и строе (+10 центов к A440), фразу не транспонируем.
+  космос            — «Finding the Balance» (Kevin MacLeod, CC BY 4.0), спокойное начало, затухает к взрыву
+  интро и заголовок — «Old Road» (Kevin MacLeod, CC BY 4.0): зурна ровно 120 BPM, удар на старте интро
+  ряды и история    — после заголовка зурна плавно уходит в «Desert City» (Kevin MacLeod, CC BY 4.0),
+                      замедленную до 80 BPM: такт = 3 с, склейки рядов и каждый год истории — на сильную долю
+  знак и Арарат     — без бита: низкий гул‑дам и живой дудук (freesound.org/s/352572, ethnictune, CC0)
+  каталог и финал   — снова зурна в долю; в сцене «02 ДУДУК» — дудук с басом 808 в том же темпе
+Дудук и зурна в одном ладу (хиджаз от ре) и строе (+10 центов к A440), фразы не транспонируем.
 """
 import argparse
 import os
@@ -19,8 +21,9 @@ import numpy as np
 
 SR = 48000
 BEAT = 0.5  # 120 BPM
-OLD_ROAD_LEN = 108.06  # длина «Old Road» после atempo и обрезки начала, с
-DUDUK_PHRASE = (198.36, 6.0)  # соль# → ре# → ре → до → долгое ре
+DUDUK_PHRASE = (198.36, 6.0)  # соль# → ре# → ре → до → долгое ре (сцена «02 ДУДУК»)
+ARARAT_PHRASE = (127.92, 11.0)  # соль# → фа → ре → до# → до → долгое ре (знак → Арарат)
+ZURNA_BACK = 12.0  # с какого такта «Old Road» зурна возвращается в каталоге
 
 
 def ff(args, out):
@@ -113,9 +116,38 @@ def bass_bed(length, root):
     return out[: int(length * SR)]
 
 
+def place(dst, at, snd):
+    i = int(round(at * SR))
+    j = min(len(dst), i + len(snd))
+    dst[i:j] += snd[: j - i]
+
+
+def fades(x, fin=0.0, fout=0.0):
+    n = len(x)
+    t = np.arange(n) / SR
+    e = np.ones(n)
+    if fin:
+        e *= np.clip(t / fin, 0, 1)
+    if fout:
+        e *= np.clip((n / SR - t) / fout, 0, 1)
+    return x * e[:, None]
+
+
+def dam(length, root):
+    """Дам — тянущийся бурдон дудука: мягкая трость на ре и суб октавой ниже, медленно дышит."""
+    n = int(length * SR)
+    t = np.arange(n) / SR
+    reed = sum(np.sin(2 * np.pi * root * 2 * k * t + 0.3 * k) / k ** 1.3 for k in range(1, 7))
+    sub = np.sin(2 * np.pi * root * t)
+    breath = 0.85 + 0.15 * np.sin(2 * np.pi * 0.23 * t)
+    x = (reed * 0.25 + sub * 0.6) * breath
+    x *= np.clip(t / 2.5, 0, 1) * np.clip((length - t) / 0.8, 0, 1)
+    return np.stack([x, x * 0.97], 1)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--music", required=True, help="папка с «Old Road.mp3» и «Finding the Balance.mp3»")
+    ap.add_argument("--music", required=True, help="папка с «Old Road.mp3», «Finding the Balance.mp3», «Desert City.mp3»")
     ap.add_argument("--duduk", required=True, help="freesound 352572 (Duduk Armenian Sample Sound, CC0)")
     ap.add_argument("--tmp", default=".")
     ap.add_argument("-o", "--out", default="soundtrack.wav")
@@ -124,54 +156,62 @@ def main():
     import render as R
 
     D, O = R.out_duration(), R.OPEN_LEN
-    ZL = D - O
+    T1 = R.to_out(11.0)                    # конец заголовка — начало рядов
+    He = R.to_out(R.H0 + R.HIST_LEN)       # конец истории: годы превращаются в знак
+    C = R.to_out(42.0)                     # каталог
     tmp = lambda n: os.path.join(a.tmp, n)
-    old = os.path.join(a.music, "Old Road.mp3")
-    # 1) спокойное начало под космос
-    ff(["-i", os.path.join(a.music, "Finding the Balance.mp3"), "-af",
+    m = lambda n: os.path.join(a.music, n)
+    ff(["-i", m("Finding the Balance.mp3"), "-af",
         f"atrim=start=0.37:end={0.37 + O},asetpts=PTS-STARTPTS,afade=t=out:st={O - 1.0}:d=1.0"], tmp("_ftb.wav"))
-    # 2) зурна ровно 120 BPM; трек короче ролика — продолжаем со второго такта, склейка в долю
-    BL = ZL - OLD_ROAD_LEN + 0.2
-    ff(["-i", old, "-i", old, "-filter_complex",
-        f"[0:a]atempo=1.017,atrim=start=0.467:end={0.467 + OLD_ROAD_LEN},asetpts=PTS-STARTPTS[A];"
-        f"[1:a]atempo=1.017,atrim=start=8.467:end={8.467 + BL},asetpts=PTS-STARTPTS[B];"
-        f"[A][B]acrossfade=d=0.06:c1=tri:c2=tri,atrim=0:{ZL},afade=t=out:st={ZL - 2.5}:d=2.5"], tmp("_zurna.wav"))
-    ftb, zur = read(tmp("_ftb.wav")), read(tmp("_zurna.wav"))
-
-    # 3) вставка дудука: время сцены → время зурны
-    s0, s1 = R.DUDUK_SCENE
-    g, d0 = 0.0, None
-    for start, length in R.SEGMENTS:
-        if start <= s0 < start + length:
-            d0 = g + s0 - start
-        g += length
-    z0, z1 = d0 - O, d0 - O + (s1 - s0)
-    i0, i1 = int(z0 * SR), int(z1 * SR)
-    ref = rms(zur[i0 - 6 * SR: i0])  # громкость зурны перед вставкой
-
+    ff(["-i", m("Old Road.mp3"), "-af", "atempo=1.017,atrim=start=0.467,asetpts=PTS-STARTPTS"], tmp("_zurna.wav"))
+    ff(["-i", m("Desert City.mp3"), "-af", f"atempo={80 / 85.97:.5f}"], tmp("_desert.wav"))  # 85.97 → 80 BPM
     ff(["-ss", str(DUDUK_PHRASE[0]), "-t", str(DUDUK_PHRASE[1] + 0.5), "-i", a.duduk, "-af", "highpass=f=120"],
        tmp("_duduk.wav"))
-    dud = read(tmp("_duduk.wav"))[: i1 - i0]
-    n = len(dud)
-    t = np.arange(n) / SR
-    dud *= (np.clip(t / 0.02, 0, 1) * np.clip((n / SR - t) / 0.35, 0, 1))[:, None]
-    dud *= 0.95 * ref / rms(dud[: int(4 * SR)])
-    root = 73.42 * 2 ** (10 / 1200)  # ре большой октавы, строй записи
-    bed = bass_bed((i1 - i0) / SR, root)
-    bed *= 0.7 * ref / rms(bed)
+    ff(["-ss", str(ARARAT_PHRASE[0]), "-t", str(ARARAT_PHRASE[1]), "-i", a.duduk, "-af", "highpass=f=120"],
+       tmp("_duduk2.wav"))
+    ftb, zur, des = read(tmp("_ftb.wav")), read(tmp("_zurna.wav")), read(tmp("_desert.wav"))
+    ref = rms(zur[: int(10 * SR)])  # громкость зурны в интро — опора для остальных частей
+    out = np.zeros((int(D * SR) + SR, 2))
+    out[: len(ftb)] += ftb
 
-    env = np.ones(len(zur))
+    # 1) интро и заголовок: зурна с удара; после заголовка плавно уходит за 1.5 с
+    z = zur[: int((T1 - O + 1.25) * SR)]
+    z = z * np.clip((T1 - O + 1.25 - np.arange(len(z)) / SR) / 1.5, 0, 1)[:, None]
+    place(out, O, z)
+    # 2) ряды и история: «Desert City» 80 BPM, её сильная доля (начало трека) — точно на конце заголовка
+    d = fades(des[: int((He - T1 + 1.2) * SR)], 0.01, 1.2)  # последний такт затихает, пока годы кружатся
+    place(out, T1, d * (0.9 * ref / rms(des[: int(30 * SR)])))
+    # 3) знак и Арарат: без бита — дам и дудук
+    root = 73.42 * 2 ** (10 / 1200)  # ре большой октавы в строе записи
+    place(out, He - 0.3, dam(C - He + 0.3, root) * (0.35 * ref / 0.3))
+    d2 = fades(read(tmp("_duduk2.wav")), 0.05, 1.5)
+    d2 *= 0.9 * ref / rms(d2[: int(5 * SR)])
+    place(out, C - ARARAT_PHRASE[1], d2)  # фраза начинается, когда складывается золотой знак, и стихает к каталогу
+    # 4) каталог и финал: снова зурна, с сильной доли
+    zl = D - C
+    z = fades(zur[int(ZURNA_BACK * SR): int((ZURNA_BACK + zl) * SR)], 0.01, 2.5)
+    i0 = int(round(C * SR))
+    # вставка дудука с басами в сцене «02 ДУДУК»
+    s0, s1 = R.DUDUK_SCENE
+    k0, k1 = int(round((R.to_out(s0) - C) * SR)), int(round((R.to_out(s1) - C) * SR))
+    zref = rms(z[k0 - 6 * SR: k0])
+    dud = read(tmp("_duduk.wav"))[: k1 - k0]
+    dud = fades(dud, 0.02, 0.35) * (0.95 * zref / rms(dud[: int(4 * SR)]))
+    bed = bass_bed((k1 - k0) / SR, root)
+    bed *= 0.7 * zref / rms(bed)
+    env = np.ones(len(z))
     k = int(0.12 * SR)
-    env[i0 - k: i0] = np.linspace(1, 0, k)  # зурна уходит за 0.12 с до доли
-    env[i0: i1] = 0.0                         # и возвращается ровно на «03»
-    zur = zur * env[:, None]
-    zur[i0: i0 + n] += dud
-    zur[i0: i0 + len(bed)] += bed
+    env[k0 - k: k0] = np.linspace(1, 0, k)  # зурна уходит за 0.12 с до доли
+    env[k0: k1] = 0.0                         # и возвращается ровно на «03»
+    z = z * env[:, None]
+    z[k0: k0 + len(dud)] += dud
+    z[k0: k0 + len(bed)] += bed
+    place(out, C, z)
 
-    write(a.out, np.concatenate([ftb, zur]))
-    for f in ("_ftb.wav", "_zurna.wav", "_duduk.wav"):
+    write(a.out, out[: int(D * SR)])
+    for f in ("_ftb.wav", "_zurna.wav", "_desert.wav", "_duduk.wav", "_duduk2.wav"):
         os.remove(tmp(f))
-    print(f"Готово: {a.out} ({D:.1f} с; дудук {O + z0:.2f}–{O + z1:.2f} с)")
+    print(f"Готово: {a.out} ({D:.1f} с; Desert City {T1:.1f}–{He:.1f}, без бита {He:.1f}–{C:.1f}, зурна с {C:.1f})")
 
 
 if __name__ == "__main__":

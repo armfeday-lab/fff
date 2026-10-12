@@ -700,34 +700,32 @@ hit(5.05, 8)
 TITLE_IDX = len(CL) - 1
 INTRO_SCENE = (0.0, 11.0)  # интро на шкале сцен: здесь звуковые эффекты ярче (sfx.py)
 
-QUANT = True
-
 # ---- 2 · Ереван — см. космическую вставку ниже; клип 8–11 нужен только как «предыдущий» для перехода в ряды
 clip(8.0, 11.0, lambda t, dur: space.draw(space.LENGTH - 1 / FPS, space.LENGTH), "whip", 0.3)
 clip(11.0, 14.0, shot("R026", "push", sh=0.65), "zoom", 0.4, prev=TITLE_IDX)
 T_words(11.4, 14.0, "вся Армения —", W // 2, 790, 80, WHITE, "ExtraBold", "m")
-T_slam(12.0, 14.0, "ЗА ОДИН ЧАС", W // 2, 900, 120, APRICOT)
+T_slam(12.34, 14.0, "ЗА ОДИН ЧАС", W // 2, 900, 120, APRICOT)
 
 # ---- 3 · Вход и ряды 0:14–0:22
 clip(14.0, 15.0, shot("Y058", "push", sh=0.3), "whip", 0.25)
 clip(15.0, 16.0, shot("R008", "pan_r", sh=0.3), "whip", 0.25)
 clip(16.0, 19.0, shot("R554", "pan_l", sh=0.55), "whip_r", 0.25)
-T_chip(16.4, 19.0, "~1000 продавцов", 520, 860, 54)
-T_chip(16.9, 19.0, "350 м рядов", 960, 950, 54, APRICOT, OBSIDIAN)
-T_chip(17.4, 19.0, "вход бесплатный", 1400, 860, 54, CREAM, POM)
+T_chip(16.55, 19.0, "~1000 продавцов", 520, 860, 54)
+T_chip(17.3, 19.0, "350 м рядов", 960, 950, 54, APRICOT, OBSIDIAN)
+T_chip(18.05, 19.0, "вход бесплатный", 1400, 860, 54, CREAM, POM)
 clip(19.0, 22.0, panels(["R135", "Y329", "R041"]), None)
-T_bar(19.6, 22.0, "каждый день · под открытым небом", W // 2, 940, 56, POM, WHITE, anchor="m")
+T_bar(19.75, 22.0, "каждый день · под открытым небом", W // 2, 940, 56, POM, WHITE, anchor="m")
 
 # ---- 4 · Слово «вернисаж» 0:22–0:30
 clip(22.0, 24.5, solid(POM), "wipe", 0.45)
-T_letters(22.3, 24.5, "ՎԵՐՆԻՍԱԺ", W // 2, H // 2, 190, CREAM)
+T_letters(22.49, 24.5, "ՎԵՐՆԻՍԱԺ", W // 2, H // 2, 190, CREAM)
 clip(24.5, 27.5, shot("R175", "pan_l", sh=0.7, shine_at=0.3), "zoom", 0.35)
 T_bar(24.8, 27.5, "показ картин", 140, 800, 80, POM, WHITE, "Black")
 T_words(25.2, 27.5, "до открытия выставки", 140, 910, 60, CREAM, "Bold")
 clip(27.5, 30.0, shot("R028", "push", sh=0.7), "whip", 0.25)
 HIST_PREV = len(CL) - 1
 T_words(27.8, 30.0, "в Ереване —", 140, 790, 76, WHITE, "ExtraBold")
-T_slam(28.3, 30.0, "С КОНЦА 1970‑Х", 140, 900, 104, APRICOT, anchor="lm")
+T_slam(28.59, 30.0, "С КОНЦА 1970‑Х", 140, 900, 104, APRICOT, anchor="lm")
 
 # ---- 5–6 · История 0:30–0:42: счётчик лет, полароиды шлёпаются на стол
 HIST = [  # (время относительно 30.0, фото, x, y, ширина, угол)
@@ -797,7 +795,7 @@ T_words(40.7, 42.0, "новые павильоны", W // 2, 910, 62, WHITE, "Ex
 
 # ---- 5–6 · История 1970 → 2026 (вставка на своей шкале H0, см. vtime)
 H0 = 3000.0
-ERA = 4.0
+ERA = 3.0  # один год — один такт музыки (80 BPM)
 ERAS = [  # год, суффикс, строка 1, строка 2, плашка, фото, стиль
     (1970, "‑е", "слово «вернисаж»", "приходит в Ереван", "так называют показы картин",
      ["CCascade in 1970s.jpg", "COld Cascade 01.jpg"], "bw"),
@@ -841,7 +839,7 @@ def era_layout(n):
 
 for e, (*_, photos, style) in enumerate(ERAS):
     for i in range(len(photos)):
-        hit(H0 + e * ERA + 0.5 + i * 0.5, 12)
+        hit(H0 + e * ERA + 0.75 + i * 0.75, 8)
 
 
 def history2(t, dur):
@@ -857,7 +855,7 @@ def history2(t, dur):
             paste(fr, polaroid_style(key, w, ang, pe[6]), x - ease_in(lt / 0.35) * 1500, y, 1.0, "mm")
     era = ERAS[e]
     for i, ((x, y, w, ang), key) in enumerate(zip(era_layout(len(era[5])), era[5])):
-        land(fr, polaroid_style(key, w, ang, era[6]), x, y, lt, 0.28 + i * 0.5)
+        land(fr, polaroid_style(key, w, ang, era[6]), x, y, lt, 0.53 + i * 0.75)
     return fr
 
 
@@ -892,13 +890,13 @@ clip(H0, H0 + HIST_LEN, history2, "up", 0.4, prev=HIST_PREV)
 over(H0, H0 + HIST_LEN, history2_counter)
 for e, (yr, suf, l1, l2, bar, photos, style) in enumerate(ERAS):
     a0, a1 = H0 + e * ERA, H0 + (e + 1) * ERA - 0.05
-    T_words(a0 + 0.5, a1, l1, 120, 420, 58, OBSIDIAN, "Bold")
-    T_words(a0 + 0.75, a1, l2, 120, 495, 58, OBSIDIAN, "Bold")
+    T_words(a0 + 0.4, a1, l1, 120, 420, 58, OBSIDIAN, "Bold")
+    T_words(a0 + 0.6, a1, l2, 120, 495, 58, OBSIDIAN, "Bold")
     T_bar(a0 + 1.5, a1, bar, 120, 630, 52, POM, WHITE)
 
 # ---- 6b · Годы взлетают, кружатся и превращаются в знак вечности (аревахач)
 SYM0 = 4000.0
-SYM_LEN = 6.5  # в ролик идёт 0.3–6.3 с (см. SEGMENTS): 3 такта, золото на сильной доле
+SYM_LEN = 6.5  # без бита: годы кружатся под гул и дудук
 SC, SR = (957.0, 548.0), 322.0  # центр и радиус золотого знака в кадре (по картинке заказчика)
 ARM_R = SR * 0.84
 
@@ -1009,7 +1007,7 @@ def symbol_scene(t, dur):
 clip(SYM0, SYM0 + SYM_LEN, symbol_scene, None)
 for k in range(8):
     hit(SYM0 + 2.3 + k * 0.16 + 0.2, 6)
-hit(SYM0 + 4.3, 14)  # золото — на сильную долю
+hit(SYM0 + 4.3, 14)  # золото
 
 # ---- 6c · Знак → солнце над Араратом → гора ложится на расписной спил (R857) → отъезд
 ARR0 = 4500.0
@@ -1319,6 +1317,8 @@ def ararat_scene(t, dur):
 
 clip(ARR0, ARR0 + ARR_LEN, ararat_scene, None)
 
+QUANT = True  # дальше снова зурна 120 BPM: надписи‑удары приземляются на долю
+
 # ---- 7 · Сквер Сарьяна ↔ площадь Республики 0:42–0:46 (сплит‑экран)
 def split2(t, dur):
     fr = Image.new("RGBA", (W, H), OBSIDIAN + (255,))
@@ -1588,32 +1588,50 @@ def explosion(t, dur):
 clip(EXPL0, EXPL0 + EXPL_LEN, explosion, None)
 hit(EXPL0 + 0.75, 18)
 
-# Ролик открывается космосом: Земля → Армения → Ереван → геометка → взрыв в золото → под ритм интро
-# Сетка: зурна стартует с интро, такт = 2 с. Каждый сегмент встаёт так, что чётное время сцены — сильная доля,
-# поэтому склейки, надписи и удары сцен попадают в такт. Знак вечности берём с 0.3 с — золото падает на долю.
-SEGMENTS = [(SP0, space.LENGTH + EXPL_LEN), (0.0, 11.0), (11.0, 19.0), (H0, HIST_LEN), (SYM0 + 0.3, 6.0), (ARR0, ARR_LEN), (42.0, 70.0)]
+# Ролик открывается космосом: Земля → Армения → Ереван → геометка → взрыв в золото → под зурну интро.
+# Музыка (music.py): зурна 120 BPM на интро; после заголовка — «Desert City» 80 BPM (такт = 3 с): ряды и
+# история встают в её такты, год = такт; знак и Арарат — без бита (дудук над гулом); каталог — снова зурна.
+# Сегмент: (начало на шкале сцен, длина на шкале сцен[, длина в ролике]) — третье число растягивает кусок.
+RYADY = [11.0, 14.0, 15.0, 16.0, 19.0, 22.0, 24.5, 27.5, 30.0]   # склейки рядов на шкале сцен
+RYADY_OUT = [3.0, 1.5, 1.5, 3.0, 3.0, 3.0, 3.0, 3.0]             # их длины в ролике: такты и полутакты 80 BPM
+SEGMENTS = ([(SP0, space.LENGTH + EXPL_LEN), (0.0, 11.0)]
+            + [(RYADY[i], RYADY[i + 1] - RYADY[i], RYADY_OUT[i]) for i in range(len(RYADY_OUT))]
+            + [(H0, HIST_LEN), (SYM0, SYM_LEN), (ARR0, ARR_LEN), (42.0, 70.0)])
 OPEN_LEN = space.LENGTH + EXPL_LEN  # длина космического вступления (до зурны)
-DURATION = sum(d for _, d in SEGMENTS)
 
 
-TAIL_SPEED = 1.0  # ускорение всего после интро (подгонка склеек под темп трека), задаётся --tail-speed
-INTRO_LEN = 0.0  # ускорение (--tail-speed) больше не используется: зурна идёт ровно 120 BPM
+def segs():
+    """(начало сцены, длина сцены, начало в ролике, длина в ролике) для каждого сегмента."""
+    g = 0.0
+    for sg in SEGMENTS:
+        start, length = sg[0], sg[1]
+        out = sg[2] if len(sg) > 2 else length
+        yield start, length, g, out
+        g += out
+
+
+DURATION = sum(o for *_, o in segs())
 
 
 def out_duration():
-    return INTRO_LEN + (DURATION - INTRO_LEN) / TAIL_SPEED
+    return DURATION
+
+
+def to_out(ts):
+    """Время на шкале сцен → время ролика (None, если кусок в ролик не вошёл)."""
+    for start, length, g, out in segs():
+        if start <= ts < start + length + 1e-6:
+            return g + (ts - start) * out / length
+    return None
 
 
 def vtime(T):
     """Глобальное время ролика → время на шкале сцен."""
-    if T > INTRO_LEN:
-        T = INTRO_LEN + (T - INTRO_LEN) * TAIL_SPEED
-    for start, length in SEGMENTS:
-        if T < length:
-            return start + T
-        T -= length
-    s0, l0 = SEGMENTS[-1]
-    return s0 + l0 - 1e-3
+    for start, length, g, out in segs():
+        if T < g + out:
+            return start + (T - g) * length / out
+    start, length, g, out = list(segs())[-1]
+    return start + length - 1e-3
 
 
 # ================================================================ compositing
@@ -1675,9 +1693,8 @@ API = {}
 
 
 def init_worker(args):
-    global A, TAIL_SPEED
+    global A
     A = args
-    TAIL_SPEED = args.tail_speed
     API.update(text_sprite=text_sprite, paste=paste, ease_back=ease_back)
     space.setup(A.space, API)
 
@@ -1708,8 +1725,6 @@ def main():
     ap.add_argument("--preview")
     ap.add_argument("--range")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 2)
-    ap.add_argument("--tail-speed", type=float, default=1.0,
-                    help="ускорить всё после интро (1.25 — склейки на 150 BPM вместо 120)")
     A = ap.parse_args()
     init_worker(A)
 

@@ -2,7 +2,7 @@
 """Звуковые эффекты ролика: синтезируются с нуля (никаких лицензий) и ставятся
 точно на события монтажа — берутся из таймлайна render.py.
 
-  python3 sfx.py --tail-speed 1.25 -o sfx.wav
+  python3 sfx.py -o sfx.wav
   ffmpeg -i soundtrack.wav -i sfx.wav -filter_complex "[0][1]amix=inputs=2:normalize=0,loudnorm=I=-14:TP=-1.5" mix.wav
 
 Что звучит:
@@ -10,7 +10,7 @@
   переходы              — тихий свист (whip, zoom, шторки)
   сильные удары         — мягкий низкий «тук»
   космос                — гул, нарастание к входу в атмосферу, бум; искра на геометке → взрыв → колокол на золоте
-  история               — тихий затвор на смене эпохи
+  история               — глубокий удар барабана на каждом годе (год = такт музыки) и тихий затвор
   знак вечности         — глубокое нарастание и мягкий низкий удар на золотом знаке
   Арарат                — ветер, пока растёт гора; тихий пролёт на отъезде от спила
 Вне интро эффекты сдержанные: музыка ведёт ролик.
@@ -82,6 +82,21 @@ def impact(amp=1.0, f0=70, f1=38, dur=0.45):
     body = np.sin(ph) * np.exp(-t / (dur * 0.35))
     click = lp(RNG.standard_normal(n), 2500) * np.exp(-t / 0.012) * 0.6
     return stereo((body + click) * 0.9 * amp)
+
+
+def drum(amp=1.0, dur=0.7):
+    """Большой барабан (дхол): низкий тон с кожей и мягким щелчком колотушки."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    ph = 2 * np.pi * np.cumsum(62 + 48 * np.exp(-t / 0.04)) / SR
+    body = np.sin(ph) * np.exp(-t / 0.22)
+    skin = lp(RNG.standard_normal(n), 900) * np.exp(-t / 0.05) * 0.35
+    beater = hp(RNG.standard_normal(n), 2000) * np.exp(-t / 0.006) * 0.25
+    return stereo(sat_(body + skin + beater) * amp)
+
+
+def sat_(x):
+    return np.tanh(x * 1.6) / np.tanh(1.6)
 
 
 def boom(amp=1.0, dur=1.6):
@@ -226,24 +241,15 @@ def stereo(x, pan=0.0):
 # ================================================================ привязка к монтажу
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tail-speed", type=float, default=1.0)
     ap.add_argument("-o", "--out", default="sfx.wav")
     a = ap.parse_args()
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import render as R
     import space as SPACE
-    R.TAIL_SPEED = a.tail_speed
     total = R.out_duration()
     buf = np.zeros((int(total * SR) + SR * 4, 2))
 
-    def to_out(ts):
-        g = 0.0
-        for start, length in R.SEGMENTS:
-            if start <= ts < start + length + 1e-6:
-                T = g + (ts - start)
-                return T if T <= R.INTRO_LEN else R.INTRO_LEN + (T - R.INTRO_LEN) / R.TAIL_SPEED
-            g += length
-        return None
+    to_out = R.to_out
 
     def put(ts, snd, gain=1.0, lead=0.0, dst=None):
         dst = buf if dst is None else dst
@@ -304,9 +310,10 @@ def main():
     put(E0 + 0.75, boom(0.7, 1.8), 0.6)
     put(E0 + R.GOLD_AT, church_bell(0.9), 1.0)
 
-    # история: тихий затвор на смене эпохи
+    # история: год = такт «Desert City» — на каждом годе глубокий удар барабана, затвор потише
     for e in range(len(R.ERAS)):
-        put(R.H0 + e * R.ERA + 0.02, shutter(0.35), 0.5)
+        put(R.H0 + e * R.ERA, drum(0.9), 0.75)
+        put(R.H0 + e * R.ERA + 0.02, shutter(0.3), 0.35)
 
     # знак вечности: глубокое нарастание и один мягкий низкий удар на золоте
     S0 = R.SYM0
