@@ -1386,6 +1386,8 @@ for num, name, sub, mkey, bg, shots in CATALOG:
     T_bar(t0 + 1.8, t - 0.05, f"{num}  {name}", 110, 860, 66, bg if bg != OBSIDIAN else POM, WHITE, "Black")
     T_words(t0 + 2.1, t - 0.05, sub, 110, 960, 46, CREAM, "Bold")
     if name == "ДУДУК":
+        DUDUK_SCENE = (t0, t)  # здесь в музыке зурну сменяет живой дудук с басами (music.py)
+
         def eq(fr, tt, t_a=t0 + 1.5, t_b=t):
             bars = Image.new("RGBA", (W, H), (0, 0, 0, 0))
             d = ImageDraw.Draw(bars)

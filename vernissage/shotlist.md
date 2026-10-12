@@ -102,7 +102,8 @@ Wikimedia Commons:
 
 ```
 Музыка:
-"Old Road" — Kevin MacLeod (incompetech.com)
+"Finding the Balance", "Old Road" — Kevin MacLeod (incompetech.com)
 Licensed under Creative Commons: By Attribution 4.0 License
 http://creativecommons.org/licenses/by/4.0/
+Дудук: "Duduk Armenian Sample Sound" — ethnictune, freesound.org/s/352572 (CC0)
 ```

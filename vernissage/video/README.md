@@ -30,26 +30,14 @@ python3 render.py \
   -o vernissage.mp4
 ```
 
-С музыкой — зурна в интро, дудук‑ремикс дальше (Kevin MacLeod, CC BY 4.0, incompetech.com):
+С музыкой (Kevin MacLeod, CC BY 4.0, incompetech.com; дудук — freesound.org/s/352572, CC0): «Finding the Balance» под космос, дальше зурна «Old Road» ровно 120 BPM, в сцене «02 ДУДУК» — живой дудук с басом 808 в том же темпе. Длины считаются по монтажу render.py:
 
 ```bash
-# 1) дорожка: «Old Road» подтягиваем до 120 BPM и ставим удар на 0:00; «Finding the Balance» (150 BPM) — с 0:08
-ffmpeg -i "Old Road.mp3" -i "Finding the Balance.mp3" -filter_complex \
-  "[0:a]atempo=1.017,atrim=start=0.467:end=9.0,asetpts=PTS-STARTPTS,afade=t=out:st=7.7:d=0.6[a];\
-   [1:a]atrim=start=0.37,asetpts=PTS-STARTPTS,adelay=8000|8000,afade=t=out:st=110.0:d=2.0[b];\
-   [a][b]amix=inputs=2:normalize=0:duration=longest,atrim=0:112,loudnorm=I=-14:TP=-1.5:LRA=11[o]" \
-  -map "[o]" -ar 48000 -ac 2 soundtrack.wav
-# 2) после интро картинка ускоряется в 1.25 раза — склейки встают на удары 150 BPM
-python3 render.py ... --tail-speed 1.25 --music soundtrack.wav -o vernissage_music.mp4
-```
-
-Звуковые эффекты (синтезируются, лицензии не нужны) и финальный микс:
-
-```bash
-python3 sfx.py --tail-speed 1.25 -o sfx.wav     # свисты, удары, космос, неон, затвор, колокольчики, гонг…
+python3 music.py --music папка/с/mp3 --duduk 352572_6510257-hq.mp3 -o soundtrack.wav
+python3 sfx.py -o sfx.wav     # свисты, удары и щелчки вспышек в интро, космос, затвор, колокол…
 ffmpeg -i soundtrack.wav -i sfx.wav -filter_complex \
-  "[0:a]volume=0.75[m];[m][1:a]amix=inputs=2:normalize=0,alimiter=limit=0.95,loudnorm=I=-14:TP=-1.5:LRA=11" mix.wav
-python3 render.py ... --tail-speed 1.25 --music mix.wav -o vernissage_final.mp4
+  "[0][1]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.95,loudnorm=I=-14:TP=-1.5:LRA=9" mix.wav
+python3 render.py ... --music mix.wav -o vernissage_final.mp4
 ```
 
 Свой трек (в конце плавно затухает за 2 с):
