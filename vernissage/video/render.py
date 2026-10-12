@@ -531,7 +531,7 @@ def T_chip(t0, t1, text, x, y, size=50, bg=POM, fg=WHITE):
 
 
 # ================================================================ SCENES (1:52)
-# ---- 1 · Интро 0:00–0:08: 8 самых ярких кадров в бит → стеклянное VERNISSAGE / YEREVAN
+# ---- 1 · Интро 0:00–0:10: 8 самых ярких кадров в бит → стеклянное VERNISSAGE / YEREVAN
 INTRO = [("Y169", "push"), ("R819", "pan_l"), ("R755", "pull"), ("Y149", "push"),
          ("R842", "pan_r"), ("Y336", "push"), ("R743", "pull"), ("R816", "pan_l")]
 for i, (k, mv) in enumerate(INTRO):
@@ -691,10 +691,11 @@ def title_bg(t, dur):
     return out
 
 
-clip(4.0, 8.0, title_bg, "zoom", 0.3)
+clip(4.0, 10.0, title_bg, "zoom", 0.3)  # заголовок держим 6 с
 hit(4.55, 16)
 hit(5.05, 8)
 TITLE_IDX = len(CL) - 1
+INTRO_SCENE = (0.0, 10.0)  # интро на шкале сцен: здесь звуковые эффекты ярче (sfx.py)
 
 # ---- 2 · Ереван — см. космическую вставку ниже; клип 8–11 нужен только как «предыдущий» для перехода в ряды
 clip(8.0, 11.0, lambda t, dur: space.draw(space.LENGTH - 1 / FPS, space.LENGTH), "whip", 0.3)
@@ -1582,7 +1583,7 @@ clip(EXPL0, EXPL0 + EXPL_LEN, explosion, None)
 hit(EXPL0 + 0.75, 18)
 
 # Ролик открывается космосом: Земля → Армения → Ереван → геометка → взрыв в золото → под ритм интро
-SEGMENTS = [(SP0, space.LENGTH + EXPL_LEN), (0.0, 8.0), (11.0, 19.0), (H0, HIST_LEN), (SYM0, SYM_LEN), (ARR0, ARR_LEN), (42.0, 70.0)]
+SEGMENTS = [(SP0, space.LENGTH + EXPL_LEN), (0.0, 10.0), (11.0, 19.0), (H0, HIST_LEN), (SYM0, SYM_LEN), (ARR0, ARR_LEN), (42.0, 70.0)]
 OPEN_LEN = space.LENGTH + EXPL_LEN  # длина космического вступления (до зурны)
 DURATION = sum(d for _, d in SEGMENTS)
 

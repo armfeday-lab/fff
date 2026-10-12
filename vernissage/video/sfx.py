@@ -6,13 +6,14 @@
   ffmpeg -i soundtrack.wav -i sfx.wav -filter_complex "[0][1]amix=inputs=2:normalize=0,loudnorm=I=-14:TP=-1.5" mix.wav
 
 Что звучит:
+  интро                 — как в первой версии: свисты, удары на каждой склейке, щелчки вспышек
   переходы              — тихий свист (whip, zoom, шторки)
   сильные удары         — мягкий низкий «тук»
   космос                — гул, нарастание к входу в атмосферу, бум; искра на геометке → взрыв → колокол на золоте
   история               — тихий затвор на смене эпохи
   знак вечности         — глубокое нарастание и мягкий низкий удар на золотом знаке
   Арарат                — ветер, пока растёт гора; тихий пролёт на отъезде от спила
-Эффекты сдержанные: музыка ведёт ролик.
+Вне интро эффекты сдержанные: музыка ведёт ролик.
 """
 import argparse
 import math
@@ -244,28 +245,53 @@ def main():
             g += length
         return None
 
-    def put(ts, snd, gain=1.0, lead=0.0):
+    def put(ts, snd, gain=1.0, lead=0.0, dst=None):
+        dst = buf if dst is None else dst
         T = to_out(ts)
         if T is None:
             return
         i = int(max(0.0, T - lead) * SR)
-        j = min(len(buf), i + len(snd))
-        buf[i:j] += snd[: j - i] * gain
+        j = min(len(dst), i + len(snd))
+        dst[i:j] += snd[: j - i] * gain
 
-    # Сдержанно: эффекты только подчёркивают монтаж, музыка — главная.
-    # переходы между клипами — тихие свисты
+    # Интро (яркие кадры в бит + заголовок) — сочные эффекты под зурну, как в первой версии;
+    # всё остальное сдержанно: эффекты только подчёркивают монтаж, музыка — главная.
+    I0, I1 = R.INTRO_SCENE
+    ibuf = np.zeros_like(buf)
+
+    def iput(ts, snd, gain=1.0, lead=0.0):
+        put(ts, snd, gain, lead, ibuf)
+
+    def in_intro(ts):
+        return I0 <= ts < I1
+
+    iput(I0, impact(0.9, 90, 40, 0.45), 0.8)  # резкая склейка с золота в ритм
     for t0, t1, fn, tr, td, prev in R.CL:
         mid = t0 + td / 2
-        if tr in ("whip", "whip_r"):
+        if in_intro(t0):
+            if tr in ("whip", "whip_r"):
+                iput(mid, whoosh(0.42, True, (-0.9, 0.9) if tr == "whip" else (0.9, -0.9)), 0.8, 0.21)
+            elif tr == "up":
+                iput(mid, whoosh(0.5, True, (0, 0)), 0.8, 0.25)
+            elif tr == "zoom":
+                iput(mid, whoosh(0.5, True, (0, 0)), 0.9, 0.3)
+                iput(t0 + td * 0.5, impact(0.6, 90, 45, 0.35), 0.8)
+            elif tr in ("circle", "wipe"):
+                iput(mid, whoosh(0.5, False, (0, 0)), 0.7, 0.25)
+        elif tr in ("whip", "whip_r"):
             put(mid, whoosh(0.42, True, (-0.6, 0.6) if tr == "whip" else (0.6, -0.6)), 0.35, 0.21)
         elif tr in ("up", "zoom"):
             put(mid, whoosh(0.5, True, (0, 0)), 0.35, 0.25)
         elif tr in ("circle", "wipe"):
             put(mid, whoosh(0.45, False, (0, 0)), 0.3, 0.22)
-    # мягкие удары — только на сильных акцентах
     for t, amp in R.HITS:
-        if amp >= 12:
+        if in_intro(t):
+            iput(t, impact(min(1.0, amp / 16) * 0.9), 0.75)
+        elif amp >= 12:  # вне интро — мягкие удары только на сильных акцентах
             put(t, impact(0.6, 60, 38, 0.4), 0.45)
+    for t, amp in R.FLASHES:
+        if in_intro(t):
+            iput(t, click(0.45 * amp), 1.0)
 
     # космос: низкий гул, нарастание, бум «входа в атмосферу»
     SP0, GL = R.SP0, SPACE.GLOBE_LEN
@@ -296,6 +322,9 @@ def main():
     # уровень эффектов — ниже музыки; пики мягко ограничиваются
     peak = np.abs(buf).max()
     buf = np.tanh(buf / max(peak, 1e-9) * 1.1) * 0.5
+    # интро — уровень первой версии: громкие события около 0.6
+    ref = np.percentile(np.abs(ibuf[np.abs(ibuf) > 1e-4]), 99.5)
+    buf += np.tanh(ibuf / max(ref, 1e-9) * 0.6 * 1.2) / 1.2
     buf = buf[: int(total * SR)]
     import wave
     with wave.open(a.out, "wb") as w:
