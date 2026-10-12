@@ -995,6 +995,175 @@ for k in range(8):
     hit(SYM0 + 2.3 + k * 0.16 + 0.2, 6)
 hit(SYM0 + 4.0, 14)
 
+# ---- 6c · Знак → солнце над Араратом → гора ложится на расписной спил (R857) → отъезд
+ARR0 = 4500.0
+ARR_LEN = 6.5  # 13 долей
+PH_B0 = (515.0, 317.0, 1150.0)        # кадр спила, на который ложится векторная гора: x0, y0, ширина
+PH_FULL = (0.0, 180.0, 1920.0)        # весь спил с рукой продавца
+SUN_POS, SUN_R = (840.0, 205.0), 74.0
+
+
+def _poly(d, pts, fill):
+    d.polygon([(x * 2, y * 2) for x, y in pts], fill=fill)
+
+
+@lru_cache(maxsize=1)
+def ararat_layers():
+    """Векторные слои (рисуются в 2× и сглаживаются): дальний хребет, Арарат со снегом, холм с Хор Вирапом, поле."""
+    WW, HH = W * 2, H * 2
+    rng = np.random.default_rng(5)
+
+    def layer():
+        return Image.new("RGBA", (WW, HH), (0, 0, 0, 0))
+
+    far = layer()
+    df = ImageDraw.Draw(far)
+    xs = np.linspace(-150, 2100, 60)
+    ys = 700 + 40 * np.sin(xs / 210) + 18 * np.sin(xs / 57)
+    _poly(df, [(-150, 1100)] + list(zip(xs, ys)) + [(2100, 1100)], (122, 111, 166, 235))
+
+    # силуэт Арарата: опорные точки по картине на спиле, сглаженные сплайном
+    key = [(-160, 760), (-75, 673), (200, 520), (330, 420), (417, 364), (470, 392), (560, 432), (700, 462),
+           (793, 473), (950, 402), (1150, 300), (1260, 246), (1327, 230), (1400, 242), (1520, 252), (1678, 262),
+           (1800, 334), (1920, 420), (2012, 506), (2100, 640)]
+    ridge = []
+    for k in range(len(key) - 1):
+        p0, p1 = key[max(k - 1, 0)], key[k]
+        p2, p3 = key[k + 1], key[min(k + 2, len(key) - 1)]
+        for u in np.linspace(0, 1, 10, endpoint=False):
+            ridge.append(tuple(0.5 * ((2 * np.array(p1)) + (-np.array(p0) + p2) * u
+                                      + (2 * np.array(p0) - 5 * np.array(p1) + 4 * np.array(p2) - np.array(p3)) * u * u
+                                      + (-np.array(p0) + 3 * np.array(p1) - 3 * np.array(p2) + p3) * u ** 3)))
+    ridge.append(key[-1])
+    ridge = [(x, y + 3 * rng.standard_normal()) for x, y in ridge]
+    body = [(-160, 1000)] + ridge + [(2100, 1000)]
+    m = Image.new("L", (WW, HH), 0)
+    _poly(ImageDraw.Draw(m), body, 255)
+    mA = np.asarray(m, np.float32) / 255
+    g = np.linspace(0, 1, HH, dtype=np.float32)[:, None]
+    rgb = np.dstack([np.repeat(lerp(128, 70, g), WW, 1), np.repeat(lerp(130, 72, g), WW, 1), np.repeat(lerp(200, 140, g), WW, 1)])
+    # снег: выше рваной снеговой линии, с языками вниз по склонам
+    xs = np.linspace(-160, 2100, 260)
+    walk = np.convolve(np.cumsum(rng.standard_normal(len(xs))), np.ones(9) / 9, "same")
+    walk = (walk - walk.mean()) / (walk.std() + 1e-9)
+    tongues = sum(rng.uniform(25, 70) * np.exp(-((xs - c) / rng.uniform(12, 30)) ** 2) for c in rng.uniform(-100, 2050, 18))
+    snow_y = 560 + 28 * walk + 18 * np.sin(xs / 140) + tongues
+    sm = Image.new("L", (WW, HH), 0)
+    _poly(ImageDraw.Draw(sm), [(-160, -10)] + list(zip(xs, snow_y)) + [(2100, -10)], 255)
+    snowA = np.asarray(sm.filter(ImageFilter.GaussianBlur(3)), np.float32) / 255 * mA
+    rgb = rgb * (1 - snowA[..., None]) + np.array([246, 247, 255], np.float32) * snowA[..., None]
+    # мягкие тени на правых склонах (размытые маски) — объём без «блоков»
+    sh = Image.new("L", (WW, HH), 0)
+    dsh = ImageDraw.Draw(sh)
+    _poly(dsh, [(417, 364), (470, 392), (560, 432), (700, 462), (793, 473), (700, 640), (520, 720), (440, 620)], 255)
+    _poly(dsh, [(1327, 230), (1400, 242), (1520, 252), (1678, 262), (1800, 334), (1920, 420), (2012, 506), (2100, 640),
+                (2100, 900), (1700, 820), (1460, 620), (1360, 420)], 255)
+    shA = np.asarray(sh.filter(ImageFilter.GaussianBlur(70)), np.float32)[..., None] / 255 * mA[..., None]
+    rgb = rgb * (1 - 0.32 * shA) + np.array([60, 62, 130], np.float32) * 0.32 * shA
+    # дымка у подножия
+    haze = np.clip((g - 0.62) / 0.3, 0, 1)[..., None]
+    rgb = rgb * (1 - 0.35 * haze) + np.array([170, 160, 210], np.float32) * 0.35 * haze
+    mtn = Image.fromarray(np.dstack([rgb, mA * 255]).astype(np.uint8), "RGBA")
+
+    hill = layer()
+    dh = ImageDraw.Draw(hill)
+    hp_ = [(893, 1090), (980, 905), (1100, 795), (1144, 742), (1300, 706), (1500, 664), (1700, 642), (1979, 575), (2100, 592), (2100, 1090)]
+    _poly(dh, hp_, (164, 82, 61, 255))
+    _poly(dh, [(1144, 742), (1300, 706), (1500, 664), (1700, 642), (1979, 575), (2100, 592), (2100, 640), (1700, 690), (1300, 750), (1150, 790)], (196, 112, 84, 255))
+    # Хор Вирап
+    c = (43, 29, 26, 255)
+    _poly(dh, [(1290, 708), (1290, 645), (1505, 645), (1505, 708)], c)
+    _poly(dh, [(1372, 645), (1372, 596), (1416, 596), (1416, 645)], c)
+    _poly(dh, [(1362, 598), (1394, 548), (1426, 598)], c)
+    dh.line((1394 * 2, 548 * 2, 1394 * 2, 506 * 2), fill=c, width=8)
+    dh.line((1381 * 2, 522 * 2, 1407 * 2, 522 * 2), fill=c, width=8)
+    _poly(dh, [(1452, 645), (1474, 616), (1496, 645)], c)
+    dh.line((1474 * 2, 616 * 2, 1474 * 2, 596 * 2), fill=c, width=6)
+
+    field = layer()
+    dfl = ImageDraw.Draw(field)
+    _poly(dfl, [(-20, 965), (450, 950), (900, 940), (1000, 1090), (-20, 1090)], (110, 150, 62, 255))
+    for cx, cy, rx, ry, colr in [(120, 860, 90, 210, (52, 92, 46)), (300, 900, 80, 170, (62, 104, 52)), (520, 990, 160, 110, (86, 128, 54)),
+                                 (1250, 1010, 170, 120, (78, 124, 50)), (1520, 1000, 180, 120, (70, 116, 48)), (1800, 980, 190, 140, (66, 110, 46))]:
+        dfl.ellipse(((cx - rx) * 2, (cy - ry) * 2, (cx + rx) * 2, (cy + ry) * 2), fill=colr + (255,))
+    return [l.resize((W, H), Image.LANCZOS) for l in (far, mtn, hill, field)]
+
+
+@lru_cache(maxsize=1)
+def sun_disc():
+    """Золотой знак, вырезанный кругом из картинки заказчика."""
+    g = gold_symbol()
+    r = int(SR * 1.02)
+    disc = g.crop((int(SC[0] - r), int(SC[1] - r), int(SC[0] + r), int(SC[1] + r)))
+    m = Image.new("L", disc.size, 0)
+    ImageDraw.Draw(m).ellipse((2, 2, 2 * r - 2, 2 * r - 2), fill=255)
+    disc.putalpha(m.filter(ImageFilter.GaussianBlur(2)))
+    return disc
+
+
+def sky(k_sunset, k_day):
+    y = np.linspace(0, 1, H, dtype=np.float32)[:, None]
+    sunset = np.stack([lerp(58, 246, y ** 1.3), lerp(36, 152, y ** 1.3), lerp(92, 112, y ** 1.1)], -1)
+    day = np.stack([lerp(70, 168, y), lerp(130, 206, y), lerp(214, 236, y)], -1)
+    base = np.full((H, 1, 3), 37.0, np.float32)
+    c = base * (1 - k_sunset) + (sunset * (1 - k_day) + day * k_day) * k_sunset
+    return np.repeat(c, W, 1)
+
+
+@lru_cache(maxsize=1)
+def ararat_photo():
+    return raw("R857")
+
+
+def photo_box(x0, y0, w):
+    h = w * H / W
+    return ararat_photo().transform((W, H), Image.EXTENT, (x0, y0, x0 + w, y0 + h), Image.BILINEAR).convert("RGBA")
+
+
+def ararat_scene(t, dur):
+    # 1) небо: из тёмного фона знака — в закат, к моменту совпадения — в дневное, как на спиле
+    k_sun = ease_in_out(t / 1.2)
+    k_day = ease_in_out((t - 2.2) / 1.0)
+    fr = Image.fromarray(sky(k_sun, k_day).astype(np.uint8)).convert("RGBA")
+    # 2) знак уменьшается и поднимается — становится солнцем; к совпадению гаснет
+    p = ease_in_out(t / 1.4)
+    r = lerp(SR * 1.02, SUN_R, p)
+    cx, cy = lerp(SC[0], SUN_POS[0], p), lerp(SC[1], SUN_POS[1], p)
+    sun_o = 1 - ease_in_out((t - 2.5) / 0.8)
+    if sun_o > 0:
+        glow = Image.new("L", (W, H), 0)
+        gr = r * 2.6
+        ImageDraw.Draw(glow).ellipse((cx - gr, cy - gr, cx + gr, cy + gr), fill=int(200 * k_sun * sun_o))
+        glow = glow.filter(ImageFilter.GaussianBlur(r * 0.9))
+        fr.alpha_composite(Image.merge("RGBA", (Image.new("L", (W, H), 255), Image.new("L", (W, H), 214),
+                                                 Image.new("L", (W, H), 150), glow)))
+        disc = sun_disc().resize((max(2, int(2 * r)), max(2, int(2 * r))), Image.LANCZOS).rotate(-t * 40, Image.BICUBIC)
+        paste(fr, disc, cx, cy, sun_o, "mm")
+    # 3) слои Арарата поднимаются снизу с параллаксом
+    for (layer, start, depth) in zip(ararat_layers(), (0.7, 0.9, 1.3, 1.5), (0.35, 0.55, 0.8, 1.0)):
+        q = ease_out((t - start) / 1.0)
+        if q <= 0:
+            continue
+        fr.alpha_composite(layer, (0, int((1 - q) * H * depth)))
+    # лёгкий наезд 2.0–3.0 — заканчивается ровно в кадре совпадения
+    z = lerp(0.94, 1.0, ease_out((t - 1.6) / 1.4))
+    if z < 0.999:
+        cw, ch = W * z, H * z
+        fr = fr.resize((W, H), Image.BILINEAR, box=((W - cw) / 2, (H - ch) / 2, (W + cw) / 2, (H + ch) / 2))
+    # 4) совпадение: вектор перетекает в расписной спил, затем камера отъезжает — видно руку продавца
+    k_x = ease_in_out((t - 3.0) / 0.6)
+    if k_x > 0:
+        pb = ease_in_out((t - 3.6) / 1.7)
+        x0 = lerp(PH_B0[0], PH_FULL[0], pb)
+        y0 = lerp(PH_B0[1], PH_FULL[1], pb)
+        w = PH_B0[2] * (PH_FULL[2] / PH_B0[2]) ** pb
+        ph = photo_box(x0, y0, w)
+        fr = Image.blend(fr, ph, k_x) if k_x < 1 else ph
+    return fr
+
+
+clip(ARR0, ARR0 + ARR_LEN, ararat_scene, None)
+
 # ---- 7 · Сквер Сарьяна ↔ площадь Республики 0:42–0:46 (сплит‑экран)
 def split2(t, dur):
     fr = Image.new("RGBA", (W, H), OBSIDIAN + (255,))
@@ -1202,7 +1371,7 @@ T_chip(SP0 + 13.3 - M, SP0 + space.LENGTH, "ВЕРНИСАЖ", W // 2, H // 2 + 
 T_words(SP0 + 13.5 - M, SP0 + space.LENGTH, "ул. Арама · ул. Бузанда", W // 2, H // 2 + 175, 40, CREAM, "SemiBold", "m")
 
 # Монтаж: (начало на шкале сцен, длительность)
-SEGMENTS = [(0.0, 8.0), (SP0, space.LENGTH), (11.0, 19.0), (H0, HIST_LEN), (SYM0, SYM_LEN), (42.0, 70.0)]
+SEGMENTS = [(0.0, 8.0), (SP0, space.LENGTH), (11.0, 19.0), (H0, HIST_LEN), (SYM0, SYM_LEN), (ARR0, ARR_LEN), (42.0, 70.0)]
 DURATION = sum(d for _, d in SEGMENTS)
 
 

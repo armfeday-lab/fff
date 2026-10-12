@@ -6,14 +6,13 @@
   ffmpeg -i soundtrack.wav -i sfx.wav -filter_complex "[0][1]amix=inputs=2:normalize=0,loudnorm=I=-14:TP=-1.5" mix.wav
 
 Что звучит:
-  переходы whip/up      — свист со смазом и панорамой
-  zoom / circle / wipe  — «пролёт сквозь» с низким ударом / обратный свист / шорох
-  удары (hit)           — низкий «тук» по силе удара; вспышки — щелчок
-  космос                — гул и мерцание, нарастание к входу в атмосферу, бум
-  неон Армении          — электрический треск; Ереван — сонар; пин — «поп»
-  история               — затвор камеры и тиканье счётчика лет
-  знак вечности         — 8 колокольчиков (по ветви), мерцание кольца, гонг на золоте
-  рейтинги / советы     — тики счётчика, щелчки галочек
+  переходы              — тихий свист (whip, zoom, шторки)
+  сильные удары         — мягкий низкий «тук»
+  космос                — гул, колокол на неоновой Армении, нарастание к входу в атмосферу, бум
+  история               — тихий затвор на смене эпохи
+  знак вечности         — глубокое нарастание и мягкий низкий удар на золотом знаке
+  Арарат                — ветер, пока растёт гора; тихий пролёт на отъезде от спила
+Эффекты сдержанные: музыка ведёт ролик.
 """
 import argparse
 import math
@@ -187,6 +186,25 @@ def shimmer(dur=1.4, amp=0.25):
     return stereo(out * np.sin(np.pi * t / dur) * amp / 6, RNG.uniform(-0.7, 0.7, n))
 
 
+def wind(dur=3.0, amp=0.4):
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    x = sweep_noise(dur, 400, 900, 1.8) * (0.6 + 0.4 * np.sin(2 * np.pi * 0.7 * t))
+    return stereo(x * np.sin(np.pi * t / dur) ** 1.5 * amp, 0.3 * np.sin(2 * np.pi * 0.2 * t))
+
+
+def church_bell(amp=0.6, dur=4.5, base=196.0):
+    """Церковный колокол: низкий удар с негармоничными обертонами и долгим затуханием."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    parts = ((0.5, 0.6, 0.9), (1.0, 1.0, 0.6), (1.19, 0.5, 0.45), (1.5, 0.45, 0.4), (2.0, 0.35, 0.3),
+             (2.52, 0.2, 0.2), (3.0, 0.12, 0.15))
+    x = sum(a * np.sin(2 * np.pi * base * m * t + RNG.uniform(0, 6)) * np.exp(-t / (dur * d)) for m, a, d in parts)
+    beat = 1 + 0.08 * np.sin(2 * np.pi * 2.2 * t)
+    strike = bp(RNG.standard_normal(n), 800, 3000) * np.exp(-t / 0.01) * 0.3
+    return stereo((x * beat * 0.4 + strike) * np.clip(t / 0.003, 0, 1) * amp)
+
+
 def gong(amp=0.6, dur=3.5):
     n = int(dur * SR)
     t = np.arange(n) / SR
@@ -234,70 +252,46 @@ def main():
         j = min(len(buf), i + len(snd))
         buf[i:j] += snd[: j - i] * gain
 
-    # переходы между клипами
+    # Сдержанно: эффекты только подчёркивают монтаж, музыка — главная.
+    # переходы между клипами — тихие свисты
     for t0, t1, fn, tr, td, prev in R.CL:
         mid = t0 + td / 2
         if tr in ("whip", "whip_r"):
-            put(mid, whoosh(0.42, True, (-0.9, 0.9) if tr == "whip" else (0.9, -0.9)), 0.8, 0.21)
-        elif tr == "up":
-            put(mid, whoosh(0.5, True, (0, 0)), 0.8, 0.25)
-        elif tr == "zoom":
-            put(mid, whoosh(0.5, True, (0, 0)), 0.9, 0.3)
-            put(t0 + td * 0.5, impact(0.6, 90, 45, 0.35), 0.8)
-        elif tr == "circle":
-            put(mid, whoosh(0.5, False, (0, 0)), 0.7, 0.25)
-        elif tr == "wipe":
-            put(mid, whoosh(0.45, False, (-0.9, 0.9)), 0.7, 0.22)
+            put(mid, whoosh(0.42, True, (-0.6, 0.6) if tr == "whip" else (0.6, -0.6)), 0.35, 0.21)
+        elif tr in ("up", "zoom"):
+            put(mid, whoosh(0.5, True, (0, 0)), 0.35, 0.25)
+        elif tr in ("circle", "wipe"):
+            put(mid, whoosh(0.45, False, (0, 0)), 0.3, 0.22)
+    # мягкие удары — только на сильных акцентах
     for t, amp in R.HITS:
-        put(t, impact(min(1.0, amp / 16) * 0.9), 0.75)
-    for t, amp in R.FLASHES:
-        put(t, click(0.45 * amp), 1.0)
+        if amp >= 12:
+            put(t, impact(0.6, 60, 38, 0.4), 0.45)
 
-    # космос
+    # космос: низкий гул, нарастание, бум «входа в атмосферу»
     SP0, GL = R.SP0, SPACE.GLOBE_LEN
-    put(SP0, rumble(GL + 0.6, 0.4), 1.0)
-    put(SP0 + GL - 1.7, riser(1.7, 0.55), 1.0)
-    put(SP0 + GL, boom(1.0), 1.0)
-    put(SP0 + GL, whoosh(0.7, False, (0, 0)), 0.9)
-    put(SP0 + 3.5, zap(0.9, 0.45), 1.0)                          # неон на глобусе
-    put(SP0 + 9.3 - SPACE.MAP_SHIFT, zap(0.8, 0.35), 1.0)        # «АРМЕНИЯ»
-    for k in range(3):
-        put(SP0 + 9.9 - SPACE.MAP_SHIFT + k * 0.6, ping(0.25), 1.0)  # сонар Еревана
-    put(SP0 + 13.0 - SPACE.MAP_SHIFT, pop(0.6), 1.0)             # пин Вернисажа
+    put(SP0, rumble(GL + 0.6, 0.35), 0.8)
+    put(SP0 + GL - 1.7, riser(1.7, 0.4), 0.6)
+    put(SP0 + GL, boom(0.8), 0.7)
+    put(SP0 + 3.6, church_bell(0.8), 0.9)   # Армения загорается неоном — один колокол
 
-    # история: затвор на каждую эпоху + тиканье счётчика лет
+    # история: тихий затвор на смене эпохи
     for e in range(len(R.ERAS)):
-        a0 = R.H0 + e * R.ERA
-        put(a0 + 0.02, shutter(0.5), 1.0)
-        for k in range(8):
-            put(a0 + k * 0.055, tick(0.18, 2800 + k * 60), 1.0)
-        for i in range(len(R.ERAS[e][5])):
-            put(a0 + 0.35 + i * 0.35 + 0.2, paper(0.45), 1.0)
+        put(R.H0 + e * R.ERA + 0.02, shutter(0.35), 0.5)
 
-    # знак вечности: ветви — колокольчики по пентатонике, кольцо — мерцание, золото — гонг
+    # знак вечности: глубокое нарастание и один мягкий низкий удар на золоте
     S0 = R.SYM0
-    put(S0 + 0.3, whoosh(0.9, True, (-0.5, 0.5)), 0.6)
-    put(S0 + 0.8, rumble(2.0, 0.25), 1.0)
-    notes = [440, 523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66]
-    for k, f in enumerate(notes):
-        put(S0 + 2.3 + k * 0.16, bell(f, 1.6, 0.28), 1.0)
-    put(S0 + 3.7, shimmer(1.2, 0.3), 1.0)
-    put(S0 + 4.3, gong(0.75), 1.0)
-    put(S0 + 4.3, shimmer(1.6, 0.25), 1.0)
+    put(S0 + 0.8, rumble(3.4, 0.25), 0.7)
+    put(S0 + 2.6, riser(1.7, 0.3), 0.45)
+    put(S0 + 4.3, boom(0.55, 2.2), 0.6)
 
-    # рейтинги, советы, финал
-    for i in range(5):
-        a0 = 92.9 + i * R.B
-        put(a0, whoosh(0.25, True, (0.6, -0.6)), 0.4, 0.1)
-        for k in range(6):
-            put(a0 + 0.1 + k * 0.12, tick(0.15, 3000 + k * 120), 1.0)
-    for i in range(3):
-        put(100.0 + i * 2.0 + 0.15, click(0.5, 1600), 1.0)
-    put(108.2, pop(0.5), 1.0)
+    # Арарат: ветер, пока растёт гора, тихий «пролёт» на отъезде камеры от спила
+    A0 = R.ARR0
+    put(A0 + 0.6, wind(3.0, 0.4), 0.6)
+    put(A0 + 3.5, whoosh(0.8, False, (0, 0)), 0.3, 0.2)
 
-    # уровень: громкие события (свисты, удары) — около 0.6, гонг и бум мягко ограничиваются
-    ref = np.percentile(np.abs(buf[np.abs(buf) > 1e-4]), 99.5)
-    buf = np.tanh(buf / max(ref, 1e-9) * 0.6 * 1.2) / 1.2
+    # уровень эффектов — ниже музыки; пики мягко ограничиваются
+    peak = np.abs(buf).max()
+    buf = np.tanh(buf / max(peak, 1e-9) * 1.1) * 0.5
     buf = buf[: int(total * SR)]
     import wave
     with wave.open(a.out, "wb") as w:
