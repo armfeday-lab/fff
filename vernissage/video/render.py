@@ -698,7 +698,7 @@ TITLE_IDX = len(CL) - 1
 
 # ---- 2 · Ереван — см. космическую вставку ниже; клип 8–11 нужен только как «предыдущий» для перехода в ряды
 clip(8.0, 11.0, lambda t, dur: space.draw(space.LENGTH - 1 / FPS, space.LENGTH), "whip", 0.3)
-clip(11.0, 14.0, shot("R026", "push", sh=0.65), "zoom", 0.4)
+clip(11.0, 14.0, shot("R026", "push", sh=0.65), "zoom", 0.4, prev=TITLE_IDX)
 T_words(11.4, 14.0, "вся Армения —", W // 2, 790, 80, WHITE, "ExtraBold", "m")
 T_slam(12.0, 14.0, "ЗА ОДИН ЧАС", W // 2, 900, 120, APRICOT)
 
@@ -1510,23 +1510,85 @@ over(110.8, 112.0, lambda fr, t: fr.alpha_composite(Image.new("RGBA", (W, H), (0
 # ---- 2 · Из космоса (вставка): Солнечная система → Земля → Армения → Ереван → Вернисаж
 # Сцена живёт на собственной шкале 1000…1014 с; frame_global() вклеивает её после интро.
 SP0 = 1000.0
-clip(SP0, SP0 + space.LENGTH, space.draw, "zoom", 0.35, prev=TITLE_IDX)
 M = space.MAP_SHIFT  # тайминги карты — на старой шкале сцены
-T_slam(SP0 + 9.3 - M, SP0 + 11.1 - M, "АРМЕНИЯ", W // 2, 880, 120, CREAM, amp=14)
-T_words(SP0 + 9.7 - M, SP0 + 11.1 - M, "Հայաստան", W // 2, 990, 52, APRICOT, "SemiBold", "m")
-T_slam(SP0 + 11.6 - M, SP0 + 12.95 - M, "ЕРЕВАН", W // 2, 880, 120, CREAM)
-over(SP0 + 11.9 - M, SP0 + 12.95 - M, lambda fr, t: paste(fr, text_sprite("40.18° N · 44.51° E"[:int((t - SP0 - 11.9 + M) * 40)] or " ", 40, "Medium", APRICOT),
-                                                         W // 2, 985, clamp((SP0 + 12.95 - M - t) / 0.2), "mm"))
-T_chip(SP0 + 13.3 - M, SP0 + space.LENGTH, "ВЕРНИСАЖ", W // 2, H // 2 + 90, 58)
-T_words(SP0 + 13.5 - M, SP0 + space.LENGTH, "ул. Арама · ул. Бузанда", W // 2, H // 2 + 175, 40, CREAM, "SemiBold", "m")
+clip(SP0, SP0 + space.LENGTH, space.draw, None)
 
-# Монтаж: (начало на шкале сцен, длительность)
-SEGMENTS = [(0.0, 8.0), (SP0, space.LENGTH), (11.0, 19.0), (H0, HIST_LEN), (SYM0, SYM_LEN), (ARR0, ARR_LEN), (42.0, 70.0)]
+
+def T_bilingual(t0, t1, hy, en, y=880):
+    """Надпись: крупно по-армянски, под ней мелко по-английски."""
+    T_slam(t0, t1, hy, W // 2, y, 120, CREAM)
+    T_words(t0 + 0.35, t1, en, W // 2, y + 105, 46, APRICOT, "SemiBold", "m")
+
+
+T_bilingual(SP0 + 9.3 - M, SP0 + 11.1 - M, "ՀԱՅԱՍՏԱՆ", "Armenia")
+T_bilingual(SP0 + 11.6 - M, SP0 + 12.95 - M, "ԵՐԵՎԱՆ", "Yerevan")
+T_slam(SP0 + 13.3 - M, SP0 + space.LENGTH, "ՎԵՐՆԻՍԱԺ", W // 2, H // 2 + 110, 92, CREAM, amp=6)
+T_words(SP0 + 13.6 - M, SP0 + space.LENGTH, "Vernissage", W // 2, H // 2 + 200, 42, APRICOT, "SemiBold", "m")
+
+# ---- 2b · Искра на геометке Вернисажа вспыхивает, взрывается и заливает экран золотом
+EXPL0 = SP0 + space.LENGTH
+EXPL_LEN = 2.0
+GOLD_AT = 1.25  # момент, когда золото закрыло экран (колокол)
+
+
+@lru_cache(maxsize=1)
+def space_last_frame():
+    return space.draw(space.LENGTH - 1 / FPS, space.LENGTH).convert("RGBA")
+
+
+@lru_cache(maxsize=1)
+def gold_field():
+    """Золотой экран: тёплый градиент с лёгкой фактурой."""
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    px, py = space.vern_point()
+    r = np.hypot(xx - px, yy - py) / np.hypot(W, H)
+    base = np.stack([lerp(255, 196, r), lerp(222, 140, r), lerp(140, 46, r)], -1)
+    rng = np.random.default_rng(9)
+    tex = np.asarray(Image.fromarray((rng.random((H // 4, W // 4)) * 255).astype(np.uint8)).resize((W, H), Image.BICUBIC), np.float32)
+    return np.clip(base * (0.94 + 0.06 * tex[..., None] / 255), 0, 255)
+
+
+def explosion(t, dur):
+    px, py = space.vern_point()
+    py -= 6
+    # кадр слегка продолжает приближаться к геометке
+    z = 1 + 0.06 * ease_in(t / GOLD_AT)
+    fr = space_last_frame()
+    if z > 1.001:
+        cw, ch = W / z, H / z
+        fr = fr.resize((W, H), Image.BILINEAR, box=(px - (px / z), py - (py / z), px - (px / z) + cw, py - (py / z) + ch))
+    out = np.asarray(fr.convert("RGB"), np.float32)
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    d = np.hypot(xx - px, yy - py)
+    # 1) искра: разгорается точка со звёздными лучами
+    k = ease_in(t / 0.7)
+    flick = 1 + 0.15 * math.sin(t * 40)
+    core = np.exp(-(d / (6 + 30 * k)) ** 2) * (1.2 + 2.5 * k) * flick
+    ang = np.arctan2(yy - py, xx - px)
+    rays = (np.abs(np.cos(ang * 2)) ** 60 + 0.6 * np.abs(np.cos(ang * 2 + np.pi / 4)) ** 80) * np.exp(-d / (40 + 500 * k)) * k * 1.6
+    spark = (core + rays)[..., None] * np.array([255, 226, 160], np.float32)
+    out = out + spark
+    # 2) взрыв: ударная волна и золото, расходящееся от геометки на весь экран
+    if t > 0.7:
+        e = ease_out((t - 0.7) / (GOLD_AT - 0.7))
+        R = e * 2300
+        fill = np.clip((R - d) / 140, 0, 1)[..., None]
+        ring = np.exp(-((d - R) / 45) ** 2)[..., None] * np.array([255, 245, 210], np.float32) * 1.5 * (1 - e * 0.5)
+        out = out * (1 - fill) + gold_field() * fill + ring
+    return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8)).convert("RGBA")
+
+
+clip(EXPL0, EXPL0 + EXPL_LEN, explosion, None)
+hit(EXPL0 + 0.75, 18)
+
+# Ролик открывается космосом: Земля → Армения → Ереван → геометка → взрыв в золото → под ритм интро
+SEGMENTS = [(SP0, space.LENGTH + EXPL_LEN), (0.0, 8.0), (11.0, 19.0), (H0, HIST_LEN), (SYM0, SYM_LEN), (ARR0, ARR_LEN), (42.0, 70.0)]
+OPEN_LEN = space.LENGTH + EXPL_LEN  # длина космического вступления (до зурны)
 DURATION = sum(d for _, d in SEGMENTS)
 
 
 TAIL_SPEED = 1.0  # ускорение всего после интро (подгонка склеек под темп трека), задаётся --tail-speed
-INTRO_LEN = SEGMENTS[0][1]
+INTRO_LEN = 0.0  # ускорение (--tail-speed) больше не используется: зурна идёт ровно 120 BPM
 
 
 def out_duration():

@@ -553,6 +553,13 @@ def map_frame(t):
     return img
 
 
+def vern_point():
+    """Где на экране кончик пина Вернисажа в последнем кадре сцены."""
+    Z = map_Z(14.0)
+    lat, lon = map_center(Z)
+    return screen_of(VERN[0], VERN[1], Z, lat, lon)
+
+
 def earth_frame(t):
     """Только Земля: видна издалека, камера приближается, Армения загорается неоном."""
     p = min(1.0, max(0.0, t / GLOBE_LEN))
