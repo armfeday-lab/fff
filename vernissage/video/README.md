@@ -43,6 +43,15 @@ ffmpeg -i "Old Road.mp3" -i "Finding the Balance.mp3" -filter_complex \
 python3 render.py ... --tail-speed 1.25 --music soundtrack.wav -o vernissage_music.mp4
 ```
 
+Звуковые эффекты (синтезируются, лицензии не нужны) и финальный микс:
+
+```bash
+python3 sfx.py --tail-speed 1.25 -o sfx.wav     # свисты, удары, космос, неон, затвор, колокольчики, гонг…
+ffmpeg -i soundtrack.wav -i sfx.wav -filter_complex \
+  "[0:a]volume=0.75[m];[m][1:a]amix=inputs=2:normalize=0,alimiter=limit=0.95,loudnorm=I=-14:TP=-1.5:LRA=11" mix.wav
+python3 render.py ... --tail-speed 1.25 --music mix.wav -o vernissage_final.mp4
+```
+
 Свой трек (в конце плавно затухает за 2 с):
 
 ```bash
