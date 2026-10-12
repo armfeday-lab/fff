@@ -202,6 +202,7 @@ CL = []       # клипы фона: (t0, t1, draw, transition, td)
 OV = []       # оверлеи: (t0, t1, fn)
 HITS = []     # удары (тряска): (t, amp)
 FLASHES = []  # вспышки: (t, amp)
+QUANT = False  # после интро надписи‑удары встают на долю (T_slam)
 
 
 def clip(t0, t1, draw, trans=None, td=0.0, prev=None):
@@ -436,6 +437,8 @@ def T_words(t0, t1, text, x, y, size=72, color=WHITE, weight="ExtraBold", anchor
 
 
 def T_slam(t0, t1, text, x, y, size=150, color=CREAM, weight="Black", anchor="mm", amp=12):
+    if QUANT:  # слово «приземляется» через 0.16 с — ставим приземление на ближайшую долю
+        t0 = round((t0 + 0.16) / B) * B - 0.16
     """Слово «влетает» из огромного размера с ударом."""
     hit(t0 + 0.16, amp)
 
@@ -691,11 +694,13 @@ def title_bg(t, dur):
     return out
 
 
-clip(4.0, 10.0, title_bg, "zoom", 0.3)  # заголовок держим 6 с
+clip(4.0, 11.0, title_bg, "zoom", 0.3)  # заголовок держим 7 с: ряды начинаются в нужную долю такта
 hit(4.55, 16)
 hit(5.05, 8)
 TITLE_IDX = len(CL) - 1
-INTRO_SCENE = (0.0, 10.0)  # интро на шкале сцен: здесь звуковые эффекты ярче (sfx.py)
+INTRO_SCENE = (0.0, 11.0)  # интро на шкале сцен: здесь звуковые эффекты ярче (sfx.py)
+
+QUANT = True
 
 # ---- 2 · Ереван — см. космическую вставку ниже; клип 8–11 нужен только как «предыдущий» для перехода в ряды
 clip(8.0, 11.0, lambda t, dur: space.draw(space.LENGTH - 1 / FPS, space.LENGTH), "whip", 0.3)
@@ -792,7 +797,7 @@ T_words(40.7, 42.0, "новые павильоны", W // 2, 910, 62, WHITE, "Ex
 
 # ---- 5–6 · История 1970 → 2026 (вставка на своей шкале H0, см. vtime)
 H0 = 3000.0
-ERA = 3.0
+ERA = 4.0
 ERAS = [  # год, суффикс, строка 1, строка 2, плашка, фото, стиль
     (1970, "‑е", "слово «вернисаж»", "приходит в Ереван", "так называют показы картин",
      ["CCascade in 1970s.jpg", "COld Cascade 01.jpg"], "bw"),
@@ -836,7 +841,7 @@ def era_layout(n):
 
 for e, (*_, photos, style) in enumerate(ERAS):
     for i in range(len(photos)):
-        hit(H0 + e * ERA + 0.35 + i * 0.35 + 0.2, 12)
+        hit(H0 + e * ERA + 0.5 + i * 0.5, 12)
 
 
 def history2(t, dur):
@@ -852,7 +857,7 @@ def history2(t, dur):
             paste(fr, polaroid_style(key, w, ang, pe[6]), x - ease_in(lt / 0.35) * 1500, y, 1.0, "mm")
     era = ERAS[e]
     for i, ((x, y, w, ang), key) in enumerate(zip(era_layout(len(era[5])), era[5])):
-        land(fr, polaroid_style(key, w, ang, era[6]), x, y, lt, 0.35 + i * 0.35)
+        land(fr, polaroid_style(key, w, ang, era[6]), x, y, lt, 0.28 + i * 0.5)
     return fr
 
 
@@ -887,13 +892,13 @@ clip(H0, H0 + HIST_LEN, history2, "up", 0.4, prev=HIST_PREV)
 over(H0, H0 + HIST_LEN, history2_counter)
 for e, (yr, suf, l1, l2, bar, photos, style) in enumerate(ERAS):
     a0, a1 = H0 + e * ERA, H0 + (e + 1) * ERA - 0.05
-    T_words(a0 + 0.45, a1, l1, 120, 420, 58, OBSIDIAN, "Bold")
-    T_words(a0 + 0.65, a1, l2, 120, 495, 58, OBSIDIAN, "Bold")
-    T_bar(a0 + 1.0, a1, bar, 120, 630, 52, POM, WHITE)
+    T_words(a0 + 0.5, a1, l1, 120, 420, 58, OBSIDIAN, "Bold")
+    T_words(a0 + 0.75, a1, l2, 120, 495, 58, OBSIDIAN, "Bold")
+    T_bar(a0 + 1.5, a1, bar, 120, 630, 52, POM, WHITE)
 
 # ---- 6b · Годы взлетают, кружатся и превращаются в знак вечности (аревахач)
 SYM0 = 4000.0
-SYM_LEN = 6.5  # кратно доле — склейки после знака остаются в сетке
+SYM_LEN = 6.5  # в ролик идёт 0.3–6.3 с (см. SEGMENTS): 3 такта, золото на сильной доле
 SC, SR = (957.0, 548.0), 322.0  # центр и радиус золотого знака в кадре (по картинке заказчика)
 ARM_R = SR * 0.84
 
@@ -1004,7 +1009,7 @@ def symbol_scene(t, dur):
 clip(SYM0, SYM0 + SYM_LEN, symbol_scene, None)
 for k in range(8):
     hit(SYM0 + 2.3 + k * 0.16 + 0.2, 6)
-hit(SYM0 + 4.0, 14)
+hit(SYM0 + 4.3, 14)  # золото — на сильную долю
 
 # ---- 6c · Знак → солнце над Араратом → гора ложится на расписной спил (R857) → отъезд
 ARR0 = 4500.0
@@ -1373,7 +1378,7 @@ for num, name, sub, mkey, bg, shots in CATALOG:
     t0 = t
     clip(t, t + 1.5, maskword(mkey, name, bg, 400, "drift"), "wipe" if num != "01" else "zoom", 0.4)
     T_slam(t + 0.25, t + 1.5, num, 170, 170, 120, CREAM, anchor="lm", amp=6)
-    hit(t + 0.3, 14)
+    hit(t + 0.5, 14)
     t += 1.5
     for i, (k, mv, dur) in enumerate(shots):
         tr = "zoom" if i == 0 else TR_CYCLE[(i + int(num)) % 4]
@@ -1406,15 +1411,15 @@ def sticker(t, dur):
     key = "CChess, Vernissage, Yerevan.jpg"
     fr = cam(key, t / dur, "drift").filter(ImageFilter.GaussianBlur(16)).convert("RGBA")
     fr.alpha_composite(Image.new("RGBA", (W, H), OBSIDIAN + (120,)))
-    land(fr, polaroid(key, 940, -4, 0.0), W / 2 + 330, H / 2, t, 0.1, 1.6)
+    land(fr, polaroid(key, 940, -4, 0.0), W / 2 + 330, H / 2, t, 0.28, 1.6)
     return fr
 
 
 clip(86.0, 90.5, sticker, "whip", 0.3)
-hit(86.32, 16)
-T_slam(86.5, 90.5, "ПОКА НЕТ", 110, 330, 92, CREAM, anchor="lm", amp=6)
-T_slam(86.8, 90.5, "ПОКУПАТЕЛЕЙ —", 110, 440, 92, CREAM, anchor="lm", amp=6)
-T_bar(87.6, 90.5, "партия в шахматы", 110, 590, 66, APRICOT, OBSIDIAN, "Black")
+hit(86.5, 16)
+T_slam(86.84, 90.5, "ПОКА НЕТ", 110, 330, 92, CREAM, anchor="lm", amp=6)
+T_slam(87.34, 90.5, "ПОКУПАТЕЛЕЙ —", 110, 440, 92, CREAM, anchor="lm", amp=6)
+T_bar(88.0, 90.5, "партия в шахматы", 110, 590, 66, APRICOT, OBSIDIAN, "Black")
 clip(90.5, 92.0, shot("Y323", "push", sh=0.0), "flash")
 
 # ---- 16 · Рейтинги 1:32–1:40
@@ -1457,12 +1462,12 @@ def ratings_bg(t, dur):
 clip(92.0, 100.0, ratings_bg, "zoom", 0.35)
 T_slam(92.3, 100.0, "ОЦЕНКИ ТУРИСТОВ", W // 2, 175, 84, CREAM, amp=8)
 for i in range(5):
-    hit(92.9 + i * B + 0.22, 9)
+    hit(92.78 + i * B + 0.22, 9)
 
 
 def ratings(fr, t):
     for i, (name, val) in enumerate(RATINGS):
-        a = 92.9 + i * B
+        a = 92.78 + i * B
         if t < a:
             continue
         p = (t - a) / 0.3
@@ -1496,8 +1501,8 @@ def check_sprite():
 for i, (k, mv, tip) in enumerate(TIPS):
     a = 100.0 + i * 2.0
     clip(a, a + 2.0, shot(k, mv, dark=0.25, sh=0.6), "whip" if i else "circle", 0.25 if i else 0.4)
-    hit(a + 0.35, 12)
-    over(a, a + 1.85, lambda fr, t, a=a: land(fr, check_sprite(), 230, H // 2 + 60, t, a + 0.15, 2.0))
+    hit(a + 0.5, 12)
+    over(a, a + 1.85, lambda fr, t, a=a: land(fr, check_sprite(), 230, H // 2 + 60, t, a + 0.28, 2.0))
     T_slam(a + 0.35, a + 1.9, tip, 380, H // 2 + 60, 84, WHITE, anchor="lm", amp=4)
 T_bar(100.3, 105.9, "СОВЕТЫ", 140, 230, 64, POM, WHITE, "Black")
 
@@ -1584,7 +1589,9 @@ clip(EXPL0, EXPL0 + EXPL_LEN, explosion, None)
 hit(EXPL0 + 0.75, 18)
 
 # Ролик открывается космосом: Земля → Армения → Ереван → геометка → взрыв в золото → под ритм интро
-SEGMENTS = [(SP0, space.LENGTH + EXPL_LEN), (0.0, 10.0), (11.0, 19.0), (H0, HIST_LEN), (SYM0, SYM_LEN), (ARR0, ARR_LEN), (42.0, 70.0)]
+# Сетка: зурна стартует с интро, такт = 2 с. Каждый сегмент встаёт так, что чётное время сцены — сильная доля,
+# поэтому склейки, надписи и удары сцен попадают в такт. Знак вечности берём с 0.3 с — золото падает на долю.
+SEGMENTS = [(SP0, space.LENGTH + EXPL_LEN), (0.0, 11.0), (11.0, 19.0), (H0, HIST_LEN), (SYM0 + 0.3, 6.0), (ARR0, ARR_LEN), (42.0, 70.0)]
 OPEN_LEN = space.LENGTH + EXPL_LEN  # длина космического вступления (до зурны)
 DURATION = sum(d for _, d in SEGMENTS)
 
