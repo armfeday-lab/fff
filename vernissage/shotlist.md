@@ -87,7 +87,7 @@ Contains modified Copernicus Sentinel data 2025
 ## Новые кадры (интро, история, обсидиан) — подписи для описания видео
 
 ```
-Фото посетителей из отзывов Google и Яндекс Карт (с разрешения авторов): Elena Sedova, Алексей Иванов, Worldspan M, Олеся Безик, Ania Tk, Елена Павелко, Lazar Shulekov, Катерина З., Parham Nikzad, GIUSEPPE VITALI, Давид Ханьян, Qing Liu, Marek Šedý, Ekaterina Shendrik, Ландыш Камалова, Liudmila
+Фото посетителей из отзывов Google и Яндекс Карт (с разрешения авторов): Elena Sedova, Алексей Иванов, Worldspan M, Олеся Безик, Ania Tk, Елена Павелко, Lazar Shulekov, Катерина З., Parham Nikzad, GIUSEPPE VITALI, Давид Ханьян, Qing Liu, Marek Šedý, Ekaterina Shendrik, Ландыш Камалова, Liudmila, A G, Катерина З.
 Wikimedia Commons:
 • Maria.hovsepyan — «Cascade in 1970s» — CC BY-SA 4.0
 • HinYerevan.com project — «Old Cascade 01» — CC BY-SA 4.0
@@ -95,3 +95,5 @@ Wikimedia Commons:
 • Armenian Museum of Photo and Video Materials — «Rally for the Armenian Referendum for Independence 1991» — CC BY-SA 2.0
 • Ivan Petrovich Vtorov — «2017-Obsidian-Armenia-Vtorov» — CC BY-SA 4.0
 ```
+
+Золотой знак вечности в сцене 6 — изображение заказчика.

@@ -651,7 +651,8 @@ def glass(fr, mask, o):
     fr.paste(Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8)).convert("RGBA"))
 
 
-def title_bg(t, dur):
+def market_layer(t):
+    """Цветной «рынок»: ленты ярких фото едут навстречу, летят гранаты и флаги."""
     fr = Image.new("RGBA", (W, H), OBSIDIAN + (255,))
     tw, th, gap = 540, 360, 8
     for row in range(3):
@@ -672,6 +673,11 @@ def title_bg(t, dur):
         spr = spr.resize((int(spr.width * sc * k), int(spr.height * sc * k)), Image.BILINEAR)
         spr = spr.rotate(rs * math.sin(t * 0.8 + ph) * 0.5 + (rs if kind == "pom" else 0), Image.BILINEAR, expand=True)
         fr.alpha_composite(spr, (int(x - spr.width / 2), int(y - spr.height / 2)))
+    return fr
+
+
+def title_bg(t, dur):
+    fr = market_layer(t)
     # как в «ОБСИДИАН»: огромные слова на тёмном фоне, внутри букв — цветной рынок
     out = Image.new("RGBA", (W, H), OBSIDIAN + (255,))
     p = ease_out((t - 0.1) / 0.5)
@@ -796,6 +802,7 @@ ERAS = [  # год, суффикс, строка 1, строка 2, плашка
                                                         "CErevan - Vernissage 02.JPG"], "faded"),
     (2000, "‑е", "ряды у площади", "Республики", "ул. Арама и Бузанда", ["CErevan - Vernissage 01.JPG", "CYerevan Vernissage view.jpg"], "faded"),
     (2016, "", "реконструкция", "новые павильоны", "более 3 гектаров", ["CYerevan Vernissage by ArmAg (1).jpg"], "color"),
+    (2023, "", "рекорд туризма", "2,3 млн гостей Армении", "очереди у прилавков", ["R543", "Y070"], "color"),
     (2026, "", "сегодня", "гости со всего мира", "~1000 продавцов", ["R290", "Y058"], "vivid"),
 ]
 HIST_LEN = ERA * len(ERAS)
@@ -849,6 +856,9 @@ def history2(t, dur):
     return fr
 
 
+TL_XS = [130 + i * 118 for i in range(len(ERAS))]
+
+
 def history2_counter(fr, t):
     lt = t - H0
     e = min(len(ERAS) - 1, int(lt // ERA))
@@ -860,7 +870,7 @@ def history2_counter(fr, t):
     sc = 1.0 + (0.1 * (1 - ease_out((pp - 1) / 0.3)) if 1 <= pp < 1.3 else 0)
     paste(fr, scaled(s, sc), 110, 250, clamp(lt / 0.2) * clamp((H0 + HIST_LEN - t) / 0.2), "lm")
     years = [x[0] for x in ERAS]
-    xs = [130 + i * 135 for i in range(len(years))]
+    xs = TL_XS
     dr = ImageDraw.Draw(fr)
     dr.line((100, 1000, xs[-1] + 30, 1000), fill=TUFF + (255,), width=4)
     pos = float(np.interp(v, years, xs))
@@ -880,6 +890,110 @@ for e, (yr, suf, l1, l2, bar, photos, style) in enumerate(ERAS):
     T_words(a0 + 0.45, a1, l1, 120, 420, 58, OBSIDIAN, "Bold")
     T_words(a0 + 0.65, a1, l2, 120, 495, 58, OBSIDIAN, "Bold")
     T_bar(a0 + 1.0, a1, bar, 120, 630, 52, POM, WHITE)
+
+# ---- 6b · Годы взлетают, кружатся и превращаются в знак вечности (аревахач)
+SYM0 = 4000.0
+SYM_LEN = 6.4
+SC, SR = (957.0, 548.0), 322.0  # центр и радиус золотого знака в кадре (по картинке заказчика)
+ARM_R = SR * 0.84
+
+
+@lru_cache(maxsize=1)
+def gold_symbol():
+    path = os.path.join(A.space, "arevakhach_gold.jpg")
+    im = Image.open(path).convert("RGB")
+    im = ImageOps.fit(im, (W, H), Image.LANCZOS).filter(ImageFilter.UnsharpMask(2, 80, 2))
+    return im.convert("RGBA")
+
+
+@lru_cache(maxsize=1)
+def hist_end_frame():
+    return history2(HIST_LEN - 0.01, HIST_LEN)
+
+
+@lru_cache(maxsize=1)
+def sym_grid():
+    pad = int(SR * 1.3)
+    yy, xx = np.mgrid[-pad:pad, -pad:pad].astype(np.float32)
+    return pad, xx, yy
+
+
+def symbol_mask(phi, reveal, ring):
+    """Маска знака: 8 серповидных ветвей + центр + кольцо. reveal[k] ∈ [0,1] — насколько выросла ветвь k."""
+    pad, xx, yy = sym_grid()
+    r = np.hypot(xx, yy)
+    R = ARM_R
+    acc = np.zeros_like(xx)
+    for k in range(8):
+        if reveal[k] <= 0:
+            continue
+        a = math.radians(k * 45) + phi
+        c1 = (0.5 * R * math.cos(a), 0.5 * R * math.sin(a))
+        c2 = (0.5 * R * math.cos(a + math.radians(30)), 0.5 * R * math.sin(a + math.radians(30)))
+        d1 = np.hypot(xx - c1[0], yy - c1[1])
+        d2 = np.hypot(xx - c2[0], yy - c2[1])
+        m = np.clip((0.5 * R - d1) / 1.5, 0, 1) * np.clip((d2 - 0.53 * R) / 1.5, 0, 1)
+        m *= np.clip((R * reveal[k] - r) / 3, 0, 1)
+        acc = np.maximum(acc, m)
+    acc = np.maximum(acc, np.clip((0.07 * R - r) / 1.5, 0, 1) * (1 if sum(reveal) > 0 else 0))
+    if ring > 0:
+        ang = (np.degrees(np.arctan2(yy, xx)) + 360 + 90) % 360
+        band = np.clip((r - SR * 0.9) / 1.5, 0, 1) * np.clip((SR * 0.98 - r) / 1.5, 0, 1)
+        acc = np.maximum(acc, band * (ang <= ring * 360))
+    m = Image.new("L", (W, H), 0)
+    m.paste(Image.fromarray((acc * 255).astype(np.uint8), "L"), (int(SC[0] - pad), int(SC[1] - pad)))
+    return m
+
+
+def sym_phi(t):
+    # вращение: разгон, кружение, торможение к финальному положению
+    return -(0.6 * t + 1.6 * ease_in_out((t - 0.6) / 2.6) * math.pi * 0.9 + 0.8 * ease_out((t - 3.2) / 1.0))
+
+
+def symbol_scene(t, dur):
+    years = [e[0] for e in ERAS]
+    darkk = ease_in_out((t - 0.35) / 0.7)
+    fr = Image.blend(Image.new("RGBA", (W, H), CREAM + (255,)), Image.new("RGBA", (W, H), (8, 8, 10, 255)), darkk)
+    if t < 0.7:  # фото и шкала уходят
+        h = hist_end_frame()
+        o = 1 - ease_in(t / 0.6)
+        if o > 0:
+            fr.alpha_composite(with_alpha(h.transform((W, H), Image.AFFINE, (1, 0, 0, 0, 1, -int(ease_in(t / 0.6) * 140))), o))
+        d = ImageDraw.Draw(fr)
+        w = (TL_XS[-1] + 30 - 100) * (1 - ease_in_out(t / 0.5))
+        if w > 1:
+            d.line((100, 1000, 100 + w, 1000), fill=POM + (255,), width=9)
+    phi = sym_phi(t)
+    if t >= 2.3:  # ветви растут из центра, каждая — из своего года
+        reveal = [ease_out((t - 2.3 - k * 0.16) / 0.45) for k in range(8)]
+        ring = ease_in_out((t - 3.7) / 0.6)
+        mask = symbol_mask(phi, reveal, ring)
+        fr.paste(market_layer(t), (0, 0), mask)
+    # годы: со шкалы → на круг → кружатся → растворяются в своей ветви
+    for k, yv in enumerate(years):
+        p = ease_in_out((t - 0.2 - k * 0.05) / 0.8)
+        a = math.radians(k * 45) + phi
+        cx, cy = SC[0] + SR * 1.05 * math.cos(a), SC[1] + SR * 1.05 * math.sin(a)
+        x = lerp(TL_XS[k], cx, p)
+        y = lerp(962 - 20, cy, p)
+        gone = ease_in((t - 2.3 - k * 0.16) / 0.4)
+        o = 1 - gone
+        if o <= 0:
+            continue
+        col = POM if darkk < 0.5 else APRICOT
+        size = int(lerp(28, 62, p) * (1 - 0.5 * gone))
+        paste(fr, text_sprite(str(yv), max(10, size), "Black", col, shadow=darkk > 0.5), x, y, o, "mm")
+    # цветной знак → золотой (как на картинке) и стоп‑кадр на 1 секунду
+    g = ease_in_out((t - 4.3) / 0.8)
+    if g > 0:
+        fr = Image.blend(fr, gold_symbol(), g)
+    return fr
+
+
+clip(SYM0, SYM0 + SYM_LEN, symbol_scene, None)
+for k in range(8):
+    hit(SYM0 + 2.3 + k * 0.16 + 0.2, 6)
+hit(SYM0 + 4.0, 14)
 
 # ---- 7 · Сквер Сарьяна ↔ площадь Республики 0:42–0:46 (сплит‑экран)
 def split2(t, dur):
@@ -1088,7 +1202,7 @@ T_chip(SP0 + 13.3 - M, SP0 + space.LENGTH, "ВЕРНИСАЖ", W // 2, H // 2 + 
 T_words(SP0 + 13.5 - M, SP0 + space.LENGTH, "ул. Арама · ул. Бузанда", W // 2, H // 2 + 175, 40, CREAM, "SemiBold", "m")
 
 # Монтаж: (начало на шкале сцен, длительность)
-SEGMENTS = [(0.0, 8.0), (SP0, space.LENGTH), (11.0, 19.0), (H0, HIST_LEN), (42.0, 70.0)]
+SEGMENTS = [(0.0, 8.0), (SP0, space.LENGTH), (11.0, 19.0), (H0, HIST_LEN), (SYM0, SYM_LEN), (42.0, 70.0)]
 DURATION = sum(d for _, d in SEGMENTS)
 
 
