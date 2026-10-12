@@ -1008,7 +1008,7 @@ hit(SYM0 + 4.0, 14)
 
 # ---- 6c · Знак → солнце над Араратом → гора ложится на расписной спил (R857) → отъезд
 ARR0 = 4500.0
-ARR_LEN = 6.5  # 13 долей
+ARR_LEN = 8.0  # 16 долей
 PH_B0 = (515.0, 317.0, 1150.0)        # кадр спила, на который ложится векторная гора: x0, y0, ширина
 PH_FULL = (0.0, 180.0, 1920.0)        # весь спил с рукой продавца
 SUN_POS, SUN_R = (840.0, 205.0), 74.0
@@ -1188,38 +1188,98 @@ def glow_lines(mask, strength):
     return (a * np.array(LINE_COLOR) + g1 * np.array(GLOW_COLOR) * 0.9 + g2 * np.array(GLOW_COLOR) * 0.7) * strength
 
 
-ARR_PIVOT = (872.0, 600.0)  # центр роста — между вершинами, у подножия
-Z_SMALL, Z_MAX = 0.32, 1.38
+ARR_PIVOT = (872.0, 600.0)          # центр роста горы
+CROSS_V = (1394.0, 524.0)           # крест Хор Вирапа в координатах вектора
+CROSS_SCREEN = (960.0, 500.0)       # где стоит большой крест в темноте
+Z_SMALL, Z_CROSS = 0.32, 14.0
+PH_K, PH_O = PH_B0[2] / W, (PH_B0[0], PH_B0[1])   # вектор → фото спила: P = PH_O + PH_K·V
+Z_FULL = 1.0 / (PH_FULL[2] / W / PH_K)              # масштаб, при котором виден весь спил с рукой
+F_FULL = ((PH_FULL[0] - PH_O[0]) / PH_K + W / 2 / Z_FULL, (PH_FULL[1] - PH_O[1]) / PH_K + H / 2 / Z_FULL)
+
+KV_POLYS = [[(1290, 708), (1290, 645), (1505, 645), (1505, 708)], [(1372, 645), (1372, 596), (1416, 596), (1416, 645)],
+            [(1362, 598), (1394, 548), (1426, 598)], [(1452, 645), (1474, 616), (1496, 645)]]
+KV_HILL = [(1070, 850), (1144, 742), (1300, 706), (1500, 664), (1700, 642), (1979, 575), (2100, 592)]
+KV_CROSSES = [((1394, 548), (1394, 506), (1381, 522), (1407, 522)), ((1474, 616), (1474, 596), (1466, 604), (1482, 604))]
 
 
-def ararat_zoom(t):
-    """Масштаб горы: растёт из маленькой до полного размера, затем — «до предела»."""
-    return Z_SMALL * (1.0 / Z_SMALL) ** ease_out((t - 0.9) / 1.4) * (Z_MAX ** ease_in_out((t - 2.3) / 0.8))
+def logx(a, b, p):
+    return a * (b / a) ** p
 
 
-def scale_about(img, z, mode="L"):
-    """Масштаб изображения на весь кадр вокруг ARR_PIVOT."""
-    px, py = ARR_PIVOT
-    return img.transform((W, H), Image.AFFINE, (1 / z, 0, px - px / z, 0, 1 / z, py - py / z), Image.BILINEAR)
+def arr_camera(t):
+    """Камера сцены в координатах вектора: экран = c + z·(V − f)."""
+    if t < 2.3:
+        z = Z_SMALL * (1.0 / Z_SMALL) ** ease_out((t - 0.9) / 1.4)
+        return ARR_PIVOT, ARR_PIVOT, z
+    if t < 4.3:  # полёт к кресту Хор Вирапа
+        p = ease_in_out((t - 2.3) / 1.3)
+        z = logx(1.0, Z_CROSS, p)
+        q = (z - 1) / (Z_CROSS - 1)  # центр съезжает так, чтобы крест плавно пришёл в точку CROSS_SCREEN
+        f = (lerp(ARR_PIVOT[0], CROSS_V[0], q ** 0.35), lerp(ARR_PIVOT[1], CROSS_V[1], q ** 0.35))
+        c = (lerp(ARR_PIVOT[0], CROSS_SCREEN[0], q ** 0.35), lerp(ARR_PIVOT[1], CROSS_SCREEN[1], q ** 0.35))
+        return f, c, z
+    p = ease_in_out((t - 4.3) / 2.6)  # крест уменьшается, камера отъезжает до спила в руке
+    z = logx(Z_CROSS, Z_FULL, p)
+    q = 1 - (np.log(z) - np.log(Z_FULL)) / (np.log(Z_CROSS) - np.log(Z_FULL))
+    q = clamp((q - 0.55) / 0.45) ** 1.5  # крест держим в центре, пока не проявится спил, потом камера уходит к руке
+    f = (lerp(CROSS_V[0], F_FULL[0], q), lerp(CROSS_V[1], F_FULL[1], q))
+    c = (lerp(CROSS_SCREEN[0], W / 2, q), lerp(CROSS_SCREEN[1], H / 2, q))
+    return f, c, z
 
 
-def photo_at_zoom(z):
-    """Кадр спила, совпадающий с вектором при масштабе z (z=1 — исходное совмещение PH_B0)."""
-    x0b, y0b, wb = PH_B0
-    k = wb / W
-    pxp, pyp = x0b + ARR_PIVOT[0] * k, y0b + ARR_PIVOT[1] * k
-    w = wb / z
-    return pxp - ARR_PIVOT[0] * w / W, pyp - ARR_PIVOT[1] * w / W, w
+def to_screen(pt, f, c, z):
+    return c[0] + z * (pt[0] - f[0]), c[1] + z * (pt[1] - f[1])
+
+
+def cam_warp(img, f, c, z):
+    """Перенос картинки в координатах вектора на экран камерой (f, c, z)."""
+    return img.transform((W, H), Image.AFFINE, (1 / z, 0, f[0] - c[0] / z, 0, 1 / z, f[1] - c[1] / z), Image.BILINEAR)
+
+
+def khor_virap_vector(f, c, z, reveal=1.0, church_o=1.0):
+    """Хор Вирап и крест — чёткими векторными линиями при любом приближении.
+    church_o гасит церковь и холм, оставляя в темноте один крест."""
+    SS = 2
+    m = Image.new("L", (W * SS, H * SS), 0)
+    d = ImageDraw.Draw(m)
+    lw = max(2, int(min(3.0 * z, 60) * SS))
+    cv = int(255 * church_o)
+    if cv > 0:
+        for poly in KV_POLYS:
+            pts = [to_screen(pt, f, c, z) for pt in poly]
+            d.line([(x * SS, y * SS) for x, y in pts + pts[:1]], fill=cv, width=lw, joint="curve")
+        hill = [to_screen(pt, f, c, z) for pt in KV_HILL]
+        d.line([(x * SS, y * SS) for x, y in hill], fill=cv, width=max(2, int(min(4.5 * z, 70) * SS)), joint="curve")
+    cw = max(3, int(min(4.0 * z, 64) * SS))
+    for a, b, l, r in KV_CROSSES[: 1 if church_o < 1 else 2]:
+        for p1, p2 in ((a, b), (l, r)):
+            x1, y1 = to_screen(p1, f, c, z)
+            x2, y2 = to_screen(p2, f, c, z)
+            d.line((x1 * SS, y1 * SS, x2 * SS, y2 * SS), fill=255, width=cw)
+    m = m.resize((W, H), Image.LANCZOS)
+    if reveal < 1:
+        x0 = to_screen((lerp(1040, 2150, reveal), 0), f, c, z)[0]
+        xs = np.arange(W, dtype=np.float32)[None, :]
+        m = Image.fromarray((np.asarray(m, np.float32) * np.clip((x0 - xs) / 60, 0, 1)).astype(np.uint8), "L")
+    return m
+
+
+def photo_cam(f, c, z):
+    """Фото спила той же камерой: экранный пиксель → фото через вектор."""
+    x0 = PH_O[0] + PH_K * (f[0] - c[0] / z)
+    y0 = PH_O[1] + PH_K * (f[1] - c[1] / z)
+    return photo_box(x0, y0, PH_K * W / z)
 
 
 def ararat_scene(t, dur):
-    bg = night_sky()  # тот же фон, что и у знака вечности — без скачка цвета
+    bg = night_sky()  # тот же фон, что и у знака вечности
     fr = Image.fromarray(bg.astype(np.uint8)).convert("RGBA")
-    # 1) знак уменьшается и поднимается над седловиной — становится солнцем; гаснет, когда гора растёт до предела
+    f, c, z = arr_camera(t)
+    # 1) знак уменьшается и поднимается — солнце; гаснет, когда начинается полёт к кресту
     p = ease_in_out(t / 1.4)
     r = lerp(SR * 1.02, 92.0, p)
     cx, cy = lerp(SC[0], 860.0, p), lerp(SC[1], 150.0, p)
-    sun_o = 1 - ease_in_out((t - 2.3) / 0.7)
+    sun_o = 1 - ease_in_out((t - 2.2) / 0.6)
     if sun_o > 0:
         glow = Image.new("L", (W, H), 0)
         gr = r * 2.2
@@ -1229,42 +1289,27 @@ def ararat_scene(t, dur):
                                                  Image.new("L", (W, H), 140), glow)))
         disc = sun_disc().resize((max(2, int(2 * r)), max(2, int(2 * r))), Image.LANCZOS).rotate(-t * 40, Image.BICUBIC)
         paste(fr, disc, cx, cy, sun_o, "mm")
-    # 2) Арарат появляется маленьким и растёт до предела (светящиеся золотые линии + Хор Вирап)
-    z = ararat_zoom(t)
+    # 2) Арарат растёт из маленького до полного; при полёте к кресту горы уходят за кадр и гаснут
     appear = ease_out((t - 0.9) / 0.5)
-    lines_o = appear * (1 - ease_in_out((t - 3.3) / 0.5))
-    if lines_o > 0:
-        hk = ease_out((t - 1.7) / 0.6)
-        m = np.asarray(ararat_logo_mask(), np.float32)
-        if hk > 0:
-            x = np.arange(W, dtype=np.float32)[None, :]
-            m = np.maximum(m, np.asarray(khor_virap_mask(), np.float32) * np.clip((lerp(1040, 2150, hk) - x) / 60, 0, 1))
-        mz = scale_about(Image.fromarray(m.astype(np.uint8), "L"), z)
-        add = glow_lines(mz, lines_o)
-        a = np.asarray(fr.convert("RGB"), np.float32) + add
-        fr = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8)).convert("RGBA")
-    # 3) гора превращается в картину: картина проступает изнутри горы и расходится на весь кадр
-    k_x = ease_in_out((t - 3.0) / 0.8)
-    if k_x > 0:
-        # 4) затем уменьшается уже картина — камера отъезжает, видно спил в руке продавца
-        pb = ease_in_out((t - 3.9) / 1.9)
-        x1, y1, w1 = photo_at_zoom(Z_MAX)
-        x0 = lerp(x1, PH_FULL[0], pb)
-        y0 = lerp(y1, PH_FULL[1], pb)
-        w = w1 * (PH_FULL[2] / w1) ** pb
-        ph = np.asarray(photo_box(x0, y0, w).convert("RGB"), np.float32)
-        if k_x < 1:
-            yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
-            rad = np.hypot(xx - ARR_PIVOT[0], (yy - ARR_PIVOT[1] + 260) * 1.3)
-            front = k_x * 1900
-            mask = np.clip((front - rad) / 220, 0, 1)[..., None]
-            cur = np.asarray(fr.convert("RGB"), np.float32)
-            out = cur * (1 - mask) + ph * mask
-            out = out + np.clip(cur - bg, 0, None) * mask * lines_o * 0.6  # золотые линии видны поверх картины, пока гаснут
-            fr = Image.fromarray(np.clip(out, 0, 255).astype(np.uint8)).convert("RGBA")
-        else:
-            fr = Image.fromarray(ph.astype(np.uint8)).convert("RGBA")
-    return fr
+    mtn_o = appear * (1 - ease_in_out((t - 2.7) / 0.6))
+    kv_o = ease_out((t - 1.7) / 0.6)
+    # расписной спил проступает, когда крест уменьшился (масштаб 3.5 → 1.8), — так картина не размыта
+    photo_k = ease_in_out((math.log(3.5) - math.log(z)) / (math.log(3.5) - math.log(1.8))) if t > 4.3 else 0.0
+    church_o = clamp((4.0 - z) / 2.0) if t > 2.3 else 1.0
+    lines_o = 1 - photo_k
+    add = np.zeros((H, W, 3), np.float32)
+    if mtn_o > 0:
+        add += glow_lines(cam_warp(ararat_logo_mask(), f, c, z), mtn_o)
+    if kv_o > 0 and lines_o > 0:
+        pulse = 1 + 0.12 * math.sin((t - 3.6) * 7) * (3.6 < t < 4.4)
+        add += glow_lines(khor_virap_vector(f, c, z, reveal=min(1.0, (t - 1.7) / 0.6), church_o=church_o),
+                          kv_o * lines_o * pulse)
+    out = np.asarray(fr.convert("RGB"), np.float32) + add
+    # 3) крест уменьшается, камера отъезжает — это крест Хор Вирапа на расписном спиле в руке продавца
+    if photo_k > 0:
+        ph = np.asarray(photo_cam(f, c, z).convert("RGB"), np.float32)
+        out = out * (1 - photo_k) + (ph + add * 0.5 * lines_o) * photo_k
+    return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8)).convert("RGBA")
 
 
 clip(ARR0, ARR0 + ARR_LEN, ararat_scene, None)
