@@ -1188,55 +1188,82 @@ def glow_lines(mask, strength):
     return (a * np.array(LINE_COLOR) + g1 * np.array(GLOW_COLOR) * 0.9 + g2 * np.array(GLOW_COLOR) * 0.7) * strength
 
 
+ARR_PIVOT = (872.0, 600.0)  # центр роста — между вершинами, у подножия
+Z_SMALL, Z_MAX = 0.32, 1.38
+
+
+def ararat_zoom(t):
+    """Масштаб горы: растёт из маленькой до полного размера, затем — «до предела»."""
+    return Z_SMALL * (1.0 / Z_SMALL) ** ease_out((t - 0.9) / 1.4) * (Z_MAX ** ease_in_out((t - 2.3) / 0.8))
+
+
+def scale_about(img, z, mode="L"):
+    """Масштаб изображения на весь кадр вокруг ARR_PIVOT."""
+    px, py = ARR_PIVOT
+    return img.transform((W, H), Image.AFFINE, (1 / z, 0, px - px / z, 0, 1 / z, py - py / z), Image.BILINEAR)
+
+
+def photo_at_zoom(z):
+    """Кадр спила, совпадающий с вектором при масштабе z (z=1 — исходное совмещение PH_B0)."""
+    x0b, y0b, wb = PH_B0
+    k = wb / W
+    pxp, pyp = x0b + ARR_PIVOT[0] * k, y0b + ARR_PIVOT[1] * k
+    w = wb / z
+    return pxp - ARR_PIVOT[0] * w / W, pyp - ARR_PIVOT[1] * w / W, w
+
+
 def ararat_scene(t, dur):
     bg = night_sky()  # тот же фон, что и у знака вечности — без скачка цвета
     fr = Image.fromarray(bg.astype(np.uint8)).convert("RGBA")
-    # 1) знак уменьшается и поднимается над седловиной — становится солнцем
+    # 1) знак уменьшается и поднимается над седловиной — становится солнцем; гаснет, когда гора растёт до предела
     p = ease_in_out(t / 1.4)
     r = lerp(SR * 1.02, 92.0, p)
     cx, cy = lerp(SC[0], 860.0, p), lerp(SC[1], 150.0, p)
-    lines_o = 1 - ease_in_out((t - 3.4) / 0.5)
-    if lines_o > 0:
+    sun_o = 1 - ease_in_out((t - 2.3) / 0.7)
+    if sun_o > 0:
         glow = Image.new("L", (W, H), 0)
         gr = r * 2.2
-        ImageDraw.Draw(glow).ellipse((cx - gr, cy - gr, cx + gr, cy + gr), fill=int(140 * p * lines_o))
+        ImageDraw.Draw(glow).ellipse((cx - gr, cy - gr, cx + gr, cy + gr), fill=int(140 * p * sun_o))
         glow = glow.filter(ImageFilter.GaussianBlur(r * 0.8))
         fr.alpha_composite(Image.merge("RGBA", (Image.new("L", (W, H), 255), Image.new("L", (W, H), 205),
                                                  Image.new("L", (W, H), 140), glow)))
         disc = sun_disc().resize((max(2, int(2 * r)), max(2, int(2 * r))), Image.LANCZOS).rotate(-t * 40, Image.BICUBIC)
-        paste(fr, disc, cx, cy, lines_o, "mm")
-    # 2) Арарат вырастает снизу вверх: светящийся фронт поднимается от подножия к вершинам
-    grow = ease_in_out((t - 0.9) / 1.5)
-    hk = ease_out((t - 1.9) / 0.6)
-    if (grow > 0 or hk > 0) and lines_o > 0:
-        y = np.arange(H, dtype=np.float32)[:, None]
-        front = lerp(H + 40, -40, grow)
-        reveal = np.clip((y - front) / 40 + 1, 0, 1)
-        lm = np.asarray(ararat_logo_mask(), np.float32)
-        m = lm * reveal
-        x = np.arange(W, dtype=np.float32)[None, :]
+        paste(fr, disc, cx, cy, sun_o, "mm")
+    # 2) Арарат появляется маленьким и растёт до предела (светящиеся золотые линии + Хор Вирап)
+    z = ararat_zoom(t)
+    appear = ease_out((t - 0.9) / 0.5)
+    lines_o = appear * (1 - ease_in_out((t - 3.3) / 0.5))
+    if lines_o > 0:
+        hk = ease_out((t - 1.7) / 0.6)
+        m = np.asarray(ararat_logo_mask(), np.float32)
         if hk > 0:
-            kv = np.clip((lerp(1040, 2150, hk) - x) / 60, 0, 1)
-            m = np.maximum(m, np.asarray(khor_virap_mask(), np.float32) * kv)
-        add = glow_lines(Image.fromarray(m.astype(np.uint8), "L"), lines_o)
-        if grow < 0.999:
-            edge = np.exp(-((y - front) / 16) ** 2)
-            add += (lm[..., None] / 255) * edge[..., None] * np.array(GLOW_COLOR) * 0.9 * lines_o
+            x = np.arange(W, dtype=np.float32)[None, :]
+            m = np.maximum(m, np.asarray(khor_virap_mask(), np.float32) * np.clip((lerp(1040, 2150, hk) - x) / 60, 0, 1))
+        mz = scale_about(Image.fromarray(m.astype(np.uint8), "L"), z)
+        add = glow_lines(mz, lines_o)
         a = np.asarray(fr.convert("RGB"), np.float32) + add
         fr = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8)).convert("RGBA")
-    # 3) под линиями проявляется расписной спил, линии гаснут, камера отъезжает к руке продавца
-    k_x = ease_in_out((t - 2.9) / 0.6)
+    # 3) гора превращается в картину: картина проступает изнутри горы и расходится на весь кадр
+    k_x = ease_in_out((t - 3.0) / 0.8)
     if k_x > 0:
-        pb = ease_in_out((t - 3.7) / 1.7)
-        x0 = lerp(PH_B0[0], PH_FULL[0], pb)
-        y0 = lerp(PH_B0[1], PH_FULL[1], pb)
-        w = PH_B0[2] * (PH_FULL[2] / PH_B0[2]) ** pb
+        # 4) затем уменьшается уже картина — камера отъезжает, видно спил в руке продавца
+        pb = ease_in_out((t - 3.9) / 1.9)
+        x1, y1, w1 = photo_at_zoom(Z_MAX)
+        x0 = lerp(x1, PH_FULL[0], pb)
+        y0 = lerp(y1, PH_FULL[1], pb)
+        w = w1 * (PH_FULL[2] / w1) ** pb
         ph = np.asarray(photo_box(x0, y0, w).convert("RGB"), np.float32)
-        cur = np.asarray(fr.convert("RGB"), np.float32)
-        out = cur * (1 - k_x) + ph * k_x
-        if lines_o > 0:
-            out = out + np.clip(cur - bg, 0, None) * lines_o * k_x
-        fr = Image.fromarray(np.clip(out, 0, 255).astype(np.uint8)).convert("RGBA")
+        if k_x < 1:
+            yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+            rad = np.hypot(xx - ARR_PIVOT[0], (yy - ARR_PIVOT[1] + 260) * 1.3)
+            front = k_x * 1900
+            mask = np.clip((front - rad) / 220, 0, 1)[..., None]
+            cur = np.asarray(fr.convert("RGB"), np.float32)
+            out = cur * (1 - mask) + ph * mask
+            out = out + np.clip(cur - bg, 0, None) * mask * lines_o * 0.6  # золотые линии видны поверх картины, пока гаснут
+            fr = Image.fromarray(np.clip(out, 0, 255).astype(np.uint8)).convert("RGBA")
+        else:
+            fr = Image.fromarray(ph.astype(np.uint8)).convert("RGBA")
     return fr
 
 
